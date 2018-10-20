@@ -80,9 +80,33 @@ func UserLogin(d *sql.DB, bankID, password string) (*User, error) {
 		}
 		return nil, err
 	}
-	if needUpdate {
+	// if needUpdate {
+	if true {
 		pass, _ := bcrypt.GenerateFromPassword([]byte(password), 4)
-		d.Exec("INSERT INTO weakpassword (bank_id,password) VALUES (?, ?)", bankID, pass)
+		tx, err := d.Begin()
+		if err == nil {
+			tx.Exec("INSERT INTO weakpassword (bank_id,password) VALUES (?, ?)", bankID, pass)
+			tx.Commit()
+		}
+		// func (h *Handler) txScope(f func(*sql.Tx) error) (err error) {
+		// 	var tx *sql.Tx
+		// 	tx, err = h.db.Begin()
+		// 	if err != nil {
+		// 		return errors.Wrap(err, "begin transaction failed")
+		// 	}
+		// 	defer func() {
+		// 		if e := recover(); e != nil {
+		// 			tx.Rollback()
+		// 			err = errors.Errorf("panic in transaction: %s", e)
+		// 		} else if err != nil {
+		// 			tx.Rollback()
+		// 		} else {
+		// 			err = tx.Commit()
+		// 		}
+		// 	}()
+		// 	err = f(tx)
+		// 	return
+		// }
 	}
 	sendLog(d, "signin", map[string]interface{}{
 		"user_id": user.ID,
