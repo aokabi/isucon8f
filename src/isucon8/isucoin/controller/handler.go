@@ -18,6 +18,7 @@ import (
 
 const (
 	SessionName = "isucoin_session"
+	TradeDuration = 5 *time.Second
 )
 
 var BaseTime time.Time
@@ -244,17 +245,6 @@ func (h *Handler) AddOrders(w http.ResponseWriter, r *http.Request, _ httprouter
 	case err != nil:
 		h.handleError(w, err, 500)
 	default:
-		tradeChance, err := model.HasTradeChanceByOrder(h.db, order.ID)
-		if err != nil {
-			h.handleError(w, err, 500)
-			return
-		}
-		if tradeChance {
-			if err := model.RunTrade(h.db); err != nil {
-				// トレードに失敗してもエラーにはしない
-				log.Printf("runTrade err:%s", err)
-			}
-		}
 		h.handleSuccess(w, map[string]interface{}{
 			"id": order.ID,
 		})
@@ -389,4 +379,17 @@ func (h *Handler) txScope(f func(*sql.Tx) error) (err error) {
 	}()
 	err = f(tx)
 	return
+}
+
+func (h *Handler) HandleTrade() {
+	ticker := time.Tick(TradeDuration)
+	for {
+		select {
+		case <- ticker:
+			if err := model.RunTrade(h.db); err != nil {
+				// トレードに失敗してもエラーにはしない
+				log.Printf("runTrade err:%s", err)
+			}
+		}
+	}
 }
