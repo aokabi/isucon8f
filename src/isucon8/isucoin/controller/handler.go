@@ -93,10 +93,14 @@ func (h *Handler) Signin(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 		return
 	}
 	var user *model.User
-	err := h.txScope(func(tx *sql.Tx) error {
-		var err error
+	var err error
+	errInternal := h.txScope(func(tx *sql.Tx) error {
+		var errInternal error
 		user, err = model.UserLogin(tx, bankID, password)
-		return err
+		if err != model.ErrTooManyFailures && err != model.ErrUserNotFound {
+			errInternal = err
+		}
+		return errInternal
 	})
 	switch {
 	case err == model.ErrTooManyFailures:
@@ -104,7 +108,7 @@ func (h *Handler) Signin(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	case err == model.ErrUserNotFound:
 		h.handleError(w, err, 404)
 	case err != nil:
-		h.handleError(w, err, 500)
+		h.handleError(w, errInternal, 500)
 	default:
 		session, err := h.store.Get(r, SessionName)
 		if err != nil {
