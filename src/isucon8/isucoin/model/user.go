@@ -68,10 +68,11 @@ func UserLogin(d *sql.DB, bankID, password string) (*User, error) {
 		return nil, err
 	}
 	var weakPassword string
-	needUpdate := true
+	needUpdate := false
 	if err := d.QueryRow("SELECT password FROM weakpassword WHERE bank_id = ?", bankID).Scan(&weakPassword);err != nil {
+		// なかった
 		weakPassword = user.Password
-		needUpdate = false
+		needUpdate = true
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(weakPassword), []byte(password)); err != nil {
 		if err == bcrypt.ErrMismatchedHashAndPassword {
