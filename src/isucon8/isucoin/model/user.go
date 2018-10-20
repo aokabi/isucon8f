@@ -67,6 +67,10 @@ func UserLogin(d QueryExecutor, bankID, password string) (*User, error) {
 	case err != nil:
 		return nil, err
 	}
+	//user.Password == password
+	// user.Password :: hashed
+	// password :: not hashed
+	time.Sleep(1 * time.Second)
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
 		if err == bcrypt.ErrMismatchedHashAndPassword {
 			return nil, ErrUserNotFound
