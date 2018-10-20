@@ -34,7 +34,7 @@ func UserSignup(tx *sql.Tx, name, bankID, password string) error {
 	if err = bank.Check(bankID, 0); err != nil {
 		return ErrBankUserNotFound
 	}
-	pass, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	pass, err := bcrypt.GenerateFromPassword([]byte(password), 4)
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func UserSignup(tx *sql.Tx, name, bankID, password string) error {
 	return nil
 }
 
-func UserLogin(d QueryExecutor, bankID, password string) (*User, error) {
+func UserLogin(d *sql.DB, bankID, password string) (*User, error) {
 	user, err := scanUser(d.Query("SELECT * FROM user WHERE bank_id = ?", bankID))
 	switch {
 	case err == sql.ErrNoRows:
@@ -67,15 +67,21 @@ func UserLogin(d QueryExecutor, bankID, password string) (*User, error) {
 	case err != nil:
 		return nil, err
 	}
-	//user.Password == password
-	// user.Password :: hashed
-	// password :: not hashed
-	time.Sleep(1 * time.Second)
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+	var weakPassword string
+	needUpdate := true
+	if err := d.QueryRow("SELECT password FROM weakpassword WHERE bank_id = ?", bankID).Scan(&weakPassword);err != nil {
+		weakPassword = user.Password
+		needUpdate = false
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(weakPassword), []byte(password)); err != nil {
 		if err == bcrypt.ErrMismatchedHashAndPassword {
 			return nil, ErrUserNotFound
 		}
 		return nil, err
+	}
+	if needUpdate {
+		pass, _ := bcrypt.GenerateFromPassword([]byte(password), 4)
+		d.Exec("INSERT INTO user (bank_id,password) VALUES (?, ?)", bankID, pass)
 	}
 	sendLog(d, "signin", map[string]interface{}{
 		"user_id": user.ID,
