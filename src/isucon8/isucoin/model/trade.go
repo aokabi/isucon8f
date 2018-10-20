@@ -35,6 +35,12 @@ func GetLatestTrade(d QueryExecutor) (*Trade, error) {
 	return scanTrade(d.Query("SELECT * FROM trade ORDER BY id DESC"))
 }
 
+func GetLatestTradeIDForInfo(db *sql.DB) (int64, error) {
+	var id int64
+	err := db.QueryRow("SELECT id FROM trade ORDER BY id DESC LIMIT 1").Scan(&id)
+	return id, err
+}
+
 func GetCandlestickData(d QueryExecutor, mt time.Time, tf string) ([]*CandlestickData, error) {
 	query := fmt.Sprintf(`
 		SELECT m.t, a.price, b.price, m.h, m.l

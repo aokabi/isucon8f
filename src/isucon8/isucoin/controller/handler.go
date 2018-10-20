@@ -148,12 +148,12 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 			}
 		}
 	}
-	latestTrade, err := model.GetLatestTrade(h.db)
+	latestTradeID, err := model.GetLatestTradeIDForInfo(h.db)
 	if err != nil {
 		h.handleError(w, errors.Wrap(err, "GetLatestTrade failed"), 500)
 		return
 	}
-	res["cursor"] = latestTrade.ID
+	res["cursor"] = latestTradeID
 	user, _ := h.userByRequest(r)
 	if user != nil {
 		orders, err := model.GetOrdersByUserIDAndLastTradeId(h.db, user.ID, lastTradeID)
