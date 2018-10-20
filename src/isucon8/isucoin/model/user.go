@@ -60,8 +60,8 @@ func UserSignup(tx *sql.Tx, name, bankID, password string) error {
 }
 
 var isLocked = false
+var m  = new(sync.Mutex)
 func UserLogin(d QueryExecutor, bankID, password string) (*User, error) {
-	m := new(sync.Mutex)
 	if isLocked {
 		return nil, sql.ErrNoRows // 500
 	}
