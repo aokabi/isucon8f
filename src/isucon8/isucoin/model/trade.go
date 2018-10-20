@@ -41,15 +41,15 @@ func GetLatestTradeIDForInfo(db *sql.DB) (int64, error) {
 }
 
 func GetCandlestickDataBySec(d QueryExecutor, mt time.Time) ([]*CandlestickData, error) {
-	return scanCandlestickDatas(d.Query(`SELECT * FROM candlestick_by_sec WHERE time >= ?`, mt))
+	return scanCandlestickDatas(d.Query(`SELECT * FROM candlestick_by_sec WHERE t >= ?`, mt))
 }
 
 func GetCandlestickDataByMin(d QueryExecutor, mt time.Time) ([]*CandlestickData, error) {
-	return scanCandlestickDatas(d.Query(`SELECT * FROM candlestick_by_min WHERE time >= ?`, mt))
+	return scanCandlestickDatas(d.Query(`SELECT * FROM candlestick_by_min WHERE t >= ?`, mt))
 }
 
 func GetCandlestickDataByHour(d QueryExecutor, mt time.Time) ([]*CandlestickData, error) {
-	return scanCandlestickDatas(d.Query(`SELECT * FROM candlestick_by_hour WHERE time >= ?`, mt))
+	return scanCandlestickDatas(d.Query(`SELECT * FROM candlestick_by_hour WHERE t >= ?`, mt))
 }
 
 func HasTradeChanceByOrder(d QueryExecutor, orderID int64) (bool, error) {
@@ -131,7 +131,7 @@ func commitReservedOrder(tx *sql.Tx, order *Order, targets []*Order, reserves []
 	_, err = tx.Exec(`
 		INSERT INTO candlestick_by_sec (t, open_price, close_price, highest_price, lowest_price) 
 		SELECT x.t, x.o, x.c, x.h, x.l FROM (
-			SELECT created_at AS t, price AS o, price AS c, price AS h, price AS l FROM trade WHERE id = ?
+			SELECT STR_TO_DATE(DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s'), '%Y-%m-%d %H:%i:%s') AS t, price AS o, price AS c, price AS h, price AS l FROM trade WHERE id = ?
 		) AS x 
 		ON DUPLICATE KEY UPDATE close_price = x.price, highest_price = GREATEST(highest_price, x.price), lowest_price = LEAST(lowest_price, x.price)
 	`, tradeID)
