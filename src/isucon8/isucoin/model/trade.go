@@ -133,7 +133,7 @@ func commitReservedOrder(tx *sql.Tx, order *Order, targets []*Order, reserves []
 		SELECT x.t, x.o, x.c, x.h, x.l FROM (
 			SELECT STR_TO_DATE(DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s'), '%Y-%m-%d %H:%i:%s') AS t, price AS o, price AS c, price AS h, price AS l FROM trade WHERE id = ?
 		) AS x 
-		ON DUPLICATE KEY UPDATE close_price = x.price, highest_price = GREATEST(highest_price, x.price), lowest_price = LEAST(lowest_price, x.price)
+		ON DUPLICATE KEY UPDATE close_price = x.c, highest_price = GREATEST(highest_price, x.c), lowest_price = LEAST(lowest_price, x.c)
 	`, tradeID)
 	if err != nil {
 		return errors.Wrap(err, "insert candlestick_by_sec")
@@ -143,7 +143,7 @@ func commitReservedOrder(tx *sql.Tx, order *Order, targets []*Order, reserves []
 		SELECT x.t, x.o, x.c, x.h, x.l FROM (
 			SELECT STR_TO_DATE(DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:00'), '%Y-%m-%d %H:%i:%s') AS t, price AS o, price AS c, price AS h, price AS l FROM trade WHERE id = ?
 		) AS x 
-		ON DUPLICATE KEY UPDATE close_price = x.price, highest_price = GREATEST(highest_price, x.price), lowest_price = LEAST(lowest_price, x.price)
+		ON DUPLICATE KEY UPDATE close_price = x.c, highest_price = GREATEST(highest_price, x.c), lowest_price = LEAST(lowest_price, x.c)
 	`, tradeID)
 	if err != nil {
 		return errors.Wrap(err, "insert candlestick_by_min")
@@ -153,7 +153,7 @@ func commitReservedOrder(tx *sql.Tx, order *Order, targets []*Order, reserves []
 		SELECT x.t, x.o, x.c, x.h, x.l FROM (
 			SELECT STR_TO_DATE(DATE_FORMAT(created_at, '%Y-%m-%d %H:00:00'), '%Y-%m-%d %H:%i:%s') AS t, price AS o, price AS c, price AS h, price AS l FROM trade WHERE id = ?
 		) AS x 
-		ON DUPLICATE KEY UPDATE close_price = x.price, highest_price = GREATEST(highest_price, x.price), lowest_price = LEAST(lowest_price, x.price)
+		ON DUPLICATE KEY UPDATE close_price = x.c, highest_price = GREATEST(highest_price, x.c), lowest_price = LEAST(lowest_price, x.c)
 	`, tradeID)
 	if err != nil {
 		return errors.Wrap(err, "insert candlestick_by_hour")
