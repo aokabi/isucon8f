@@ -15,6 +15,7 @@ var (
 	ErrCreditInsufficient = errors.New("銀行の残高が足りません")
 	ErrParameterInvalid   = errors.New("parameter invalid")
 	ErrNoOrderForTrade    = errors.New("no order for trade")
+	ErrTooManyFailures    = errors.New("too many failures")
 )
 
 type QueryExecutor interface {
