@@ -193,12 +193,50 @@ func tryTrade(tx *sql.Tx, orderID int64) error {
 		}
 	}()
 
-	var targetOrders []*Order
+	var targetOrders = []*Order{}
 	switch order.Type {
 	case OrderTypeBuy:
-		targetOrders, err = scanOrders(tx.Query(`SELECT * FROM orders WHERE type = ? AND closed_at IS NULL AND price <= ? ORDER BY price ASC, created_at ASC, id ASC`, OrderTypeSell, order.Price))
+		rows, err := tx.Query(`SELECT o.id, o.type, o.user_id, o.amount, u.bank_id FROM orders AS o INNER JOIN user AS u ON u.id = o.user_id WHERE o.type = ? AND o.closed_at IS NULL AND o.price <= ? ORDER BY o.price ASC, o.created_at ASC, FOR UPDATE`, OrderTypeSell, order.Price)
+		err = func(rows *sql.Rows, e error) (err error) {
+			if e != nil {
+				return e
+			}
+			defer func() {
+				err = rows.Close()
+			}()
+			for rows.Next() {
+				var v Order
+				var bankId string
+				if err = rows.Scan(&v.ID, &v.Type, &v.UserID, &v.Amount, &bankId); err != nil {
+					return err
+				}
+				v.User = &User{BankID: bankId}
+				targetOrders = append(targetOrders, &v)
+			}
+			err = rows.Err()
+			return err
+		}(rows, err)
 	case OrderTypeSell:
-		targetOrders, err = scanOrders(tx.Query(`SELECT * FROM orders WHERE type = ? AND closed_at IS NULL AND price >= ? ORDER BY price DESC, created_at ASC, id ASC`, OrderTypeBuy, order.Price))
+		rows, err := tx.Query(`SELECT o.id, o.type, o.user_id, o.amount, u.bank_id FROM orders AS o INNER JOIN user AS u ON u.id = o.user_id WHERE o.type = ? AND o.closed_at IS NULL AND o.price >= ? ORDER BY o.price DESC, o.created_at ASC, FOR UPDATE`, OrderTypeBuy, order.Price)
+		err = func(rows *sql.Rows, e error) (err error) {
+			if e != nil {
+				return e
+			}
+			defer func() {
+				err = rows.Close()
+			}()
+			for rows.Next() {
+				var v Order
+				var bankId string
+				if err = rows.Scan(&v.ID, &v.Type, &v.UserID, &v.Amount, &bankId); err != nil {
+					return err
+				}
+				v.User = &User{BankID: bankId}
+				targetOrders = append(targetOrders, &v)
+			}
+			err = rows.Err()
+			return err
+		}(rows, err)
 	}
 	if err != nil {
 		return errors.Wrap(err, "find target orders")
@@ -208,13 +246,6 @@ func tryTrade(tx *sql.Tx, orderID int64) error {
 	}
 
 	for _, to := range targetOrders {
-		to, err = getOpenOrderByID(tx, to.ID)
-		if err != nil {
-			if err == ErrOrderAlreadyClosed {
-				continue
-			}
-			return errors.Wrap(err, "getOpenOrderByID  buy_order")
-		}
 		if to.Amount > restAmount {
 			continue
 		}
