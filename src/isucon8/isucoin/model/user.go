@@ -3,7 +3,7 @@ package model
 import (
 	"database/sql"
 	"time"
-
+  "sync"
 	"github.com/go-sql-driver/mysql"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -59,7 +59,19 @@ func UserSignup(tx *sql.Tx, name, bankID, password string) error {
 	return nil
 }
 
+var isLocked = false
 func UserLogin(d QueryExecutor, bankID, password string) (*User, error) {
+	m := new(sync.Mutex)
+	if isLocked {
+		return nil, sql.ErrNoRows // 500
+	}
+	m.Lock()
+	isLocked = true
+	defer func(){
+		m.Unlock()
+		isLocked = false
+	}()
+
 	user, err := scanUser(d.Query("SELECT * FROM user WHERE bank_id = ?", bankID))
 	switch {
 	case err == sql.ErrNoRows:
