@@ -81,7 +81,7 @@ func UserLogin(d *sql.DB, bankID, password string) (*User, error) {
 	}
 	if needUpdate {
 		pass, _ := bcrypt.GenerateFromPassword([]byte(password), 4)
-		d.Exec("INSERT INTO user (bank_id,password) VALUES (?, ?)", bankID, pass)
+		d.Exec("INSERT INTO weakpassword (bank_id,password) VALUES (?, ?)", bankID, pass)
 	}
 	sendLog(d, "signin", map[string]interface{}{
 		"user_id": user.ID,
