@@ -6,6 +6,7 @@ import (
 	"isucon8/isucoin/controller"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"time"
 
@@ -60,6 +61,7 @@ func main() {
 	h := controller.NewHandler(db, store)
 
 	router := httprouter.New()
+	router.Handler(http.MethodGet, "/debug/pprof/:item", http.DefaultServeMux)
 	router.POST("/initialize", h.Initialize)
 	router.POST("/signup", h.Signup)
 	router.POST("/signin", h.Signin)
