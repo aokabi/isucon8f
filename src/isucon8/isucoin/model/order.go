@@ -92,15 +92,25 @@ func GetOrdersByUserIDAndLastTradeId(d QueryExecutor, userID int64, tradeID int6
 		var closedAt mysql.NullTime
 		var tradeID sql.NullInt64
 		// USER
-		v.User = &User{}
+		var uid,ufailed sql.NullInt64
+		var ubankid,uname,upassword string
+		var ucreatedat mysql.NullTime
 		// TRADE
 		var tid, amount, price sql.NullInt64
 		var created_at mysql.NullTime
 		if err = rows.Scan(
 				&v.ID, &v.Type, &v.UserID, &v.Amount, &v.Price, &closedAt, &tradeID, &v.CreatedAt,
-				&v.User.ID,&v.User.BankID,&v.User.Name,&v.User.Password,&v.User.CreatedAt,&v.User.Failed,
+				&uid,&ubankid,&uname,&upassword,&ucreatedat,&ufailed,
 			  &tid, &amount, &price, &created_at); err != nil {
 			return nil, err
+		}
+		v.User = &User{
+			ID: uid.Int64,
+			BankID:ubankid,
+			Name:uname,
+			Password:upassword,
+			CreatedAt:ucreatedat.Time,
+			Failed:ufailed.Int64,
 		}
 		if closedAt.Valid {
 			v.ClosedAt = &closedAt.Time
