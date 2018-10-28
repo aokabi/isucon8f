@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -22,9 +23,20 @@ const (
 
 var BaseTime time.Time
 
+var (
+	shareLimitUserIdThreshold int64 = 1000
+)
+
 type Handler struct {
 	db    *sql.DB
 	store sessions.Store
+}
+
+func init() {
+	threshold, err := strconv.Atoi(os.Getenv("ISU_SHARE_THRESHOLD"))
+	if err != nil {
+		shareLimitUserIdThreshold = int64(threshold)
+	}
 }
 
 func NewHandler(db *sql.DB, store sessions.Store) *Handler {
@@ -220,7 +232,7 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 		res["highest_buy_price"] = highestBuyOrder.Price
 	}
 	// TODO: trueにするとシェアボタンが有効になるが、アクセスが増えてヤバイので一旦falseにしておく
-	res["enable_share"] = false
+	res["enable_share"] = user.ID < shareLimitUserIdThreshold
 
 	h.handleSuccess(w, res)
 }
