@@ -138,6 +138,7 @@ func (h *Handler) Signin(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 			return
 		}
 		session.Values["user_id"] = user.ID
+		session.Values["bank_id"] = bankID
 		if err = session.Save(r, w); err != nil {
 			h.handleError(w, err, 500)
 			return
@@ -153,6 +154,7 @@ func (h *Handler) Signout(w http.ResponseWriter, r *http.Request, _ httprouter.P
 		return
 	}
 	session.Values["user_id"] = 0
+	session.Values["bank_id"] = ""
 	session.Options = &sessions.Options{MaxAge: -1}
 	if err = session.Save(r, w); err != nil {
 		h.handleError(w, err, 500)
@@ -395,6 +397,7 @@ func (h *Handler) CommonMiddleware(f http.Handler) http.Handler {
 			switch {
 			case err == sql.ErrNoRows:
 				session.Values["user_id"] = 0
+				session.Values["bank_id"] = ""
 				session.Options = &sessions.Options{MaxAge: -1}
 				if err = session.Save(r, w); err != nil {
 					h.handleError(w, err, 500)
@@ -407,6 +410,7 @@ func (h *Handler) CommonMiddleware(f http.Handler) http.Handler {
 				return
 			}
 			ctx := context.WithValue(r.Context(), "user_id", user.ID)
+			ctx = context.WithValue(ctx, "bank_id", user.BankID)
 			f.ServeHTTP(w, r.WithContext(ctx))
 		} else {
 			f.ServeHTTP(w, r)
