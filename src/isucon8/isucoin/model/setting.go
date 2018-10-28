@@ -64,7 +64,7 @@ func sendLog(d QueryExecutor, tag string, v interface{}) {
 		log.Printf("[WARN] new logger failed. tag: %s, v: %v, err:%s", tag, v, err)
 		return
 	}
-	err = logger.Send(tag, v)
+	err = logger.Enqueue(tag, v)
 	if err != nil {
 		log.Printf("[WARN] logger send failed. tag: %s, v: %v, err:%s", tag, v, err)
 	}
