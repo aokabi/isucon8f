@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -24,7 +25,7 @@ const (
 var BaseTime time.Time
 
 var (
-	shareLimitRatio int64 = 10
+	concurrencyLimit = 50
 )
 
 type Handler struct {
@@ -33,11 +34,11 @@ type Handler struct {
 }
 
 func init() {
-	threshold, err := strconv.Atoi(os.Getenv("ISU_SHARE_RATIO"))
+	limit, err := strconv.Atoi(os.Getenv("ISU_CONCURRENCY_LIMIT"))
 	if err == nil {
-		shareLimitRatio = int64(threshold)
+		concurrencyLimit = limit
 	}
-	log.Println("share ratio:", shareLimitRatio)
+	log.Println("concurrency limit:", concurrencyLimit)
 }
 
 func NewHandler(db *sql.DB, store sessions.Store) *Handler {
@@ -232,10 +233,9 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	default:
 		res["highest_buy_price"] = highestBuyOrder.Price
 	}
-	enableShare := false
-	if user != nil {
-		enableShare = user.ID % shareLimitRatio == 0
-	}
+	numGoroutine := runtime.NumGoroutine()
+	log.Println("NumGoroutine:", numGoroutine)
+	enableShare := numGoroutine < concurrencyLimit
 	res["enable_share"] = enableShare
 
 	h.handleSuccess(w, res)
