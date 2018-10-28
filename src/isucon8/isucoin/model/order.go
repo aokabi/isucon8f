@@ -97,7 +97,7 @@ func GetOrdersByUserIDAndLastTradeId(d QueryExecutor, userID int64, tradeID int6
 		var tid, amount, price sql.NullInt64
 		var created_at mysql.NullTime
 		if err = rows.Scan(
-				v.ID, &v.Type, &v.UserID, &v.Amount, &v.Price, &closedAt, &tradeID, &v.CreatedAt,
+				&v.ID, &v.Type, &v.UserID, &v.Amount, &v.Price, &closedAt, &tradeID, &v.CreatedAt,
 				&v.User.ID,&v.User.BankID,&v.User.Name,&v.User.Password,&v.User.CreatedAt,&v.User.Failed,
 			  &tid, &amount, &price, &created_at); err != nil {
 			return nil, err
