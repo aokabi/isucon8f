@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"time"
 	// "log"
+	"sync"
 	"github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
@@ -60,7 +61,8 @@ func UserSignup(tx *sql.Tx, name, bankID, password string) error {
 	}
 	return nil
 }
-
+var loginMutex = &sync.Mutex{}
+var loginSuccessCount = 0
 func UserLogin(d *sql.Tx, bankID, password string) (*User, error) {
 	user, err := scanUser(d.Query("SELECT * FROM user WHERE bank_id = ?", bankID))
 	switch {
@@ -75,21 +77,20 @@ func UserLogin(d *sql.Tx, bankID, password string) (*User, error) {
 	weakPassword := user.Password
 	needUpdate := false
 	// "$2a$04$"
-	if user.Password[4] != '0' || user.Password[5] != '4' {
-		if err := d.QueryRow("SELECT password FROM weakpassword WHERE bank_id = ?", bankID).Scan(&weakPassword);err != nil {
-			// なかったので追加
-			weakPassword = user.Password
-			needUpdate = true
-			if needUpdate {
-				// 無かった人はログインされない
-				if err := IncrLoginFailed(d, bankID); err != nil {
-					return nil, err
-				}
-				if user.Failed == 5 {
-					return nil, ErrTooManyFailures
-				}
-				return nil, ErrUserNotFound
+	if err := d.QueryRow("SELECT password FROM weakpassword WHERE bank_id = ?", bankID).Scan(&weakPassword);err != nil {
+		// なかったので追加
+		weakPassword = user.Password
+		needUpdate = true
+		// 50回成功するまでは一律BANじゃ
+		if needUpdate && loginSuccessCount < 50 {
+			// 無かった人はログインされない
+			if err := IncrLoginFailed(d, bankID); err != nil {
+				return nil, err
 			}
+			if user.Failed == 5 {
+				return nil, ErrTooManyFailures
+			}
+			return nil, ErrUserNotFound
 		}
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(weakPassword), []byte(password)); err != nil {
@@ -106,6 +107,9 @@ func UserLogin(d *sql.Tx, bankID, password string) (*User, error) {
 	}
 	// log.Println("signin @" + bankID + " - " + weakPassword)
 	// サインイン成功したのでfailedを戻す
+	loginMutex.Lock()
+	loginSuccessCount += 1
+	loginMutex.Unlock()
 	if user.Failed > 0 {
 		err = ResetLoginFailed(d, bankID)
 		if err != nil {
