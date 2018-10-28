@@ -19,8 +19,10 @@ type User struct {
 	Failed    int64     `json:"-"`
 }
 
-func GetUserByID(d QueryExecutor, id int64) (*User, error) {
-	return scanUser(d.Query("SELECT * FROM user WHERE id = ?", id))
+func GetUserByID(d *sql.DB, id int64) (*User, error) {
+	var v User
+	err := d.QueryRow("SELECT * FROM user WHERE id = ? LIMIT 1", id).Scan(&v.ID, &v.BankID, &v.Name, &v.Password, &v.CreatedAt, &v.Failed)
+	return &v, err
 }
 
 func getUserByIDWithLock(tx *sql.Tx, id int64) (*User, error) {
