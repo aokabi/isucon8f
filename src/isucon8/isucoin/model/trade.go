@@ -272,11 +272,17 @@ func HandleTrade(db *sql.DB) {
 }
 
 func handleTrade(db *sql.DB) {
-	ticker := time.Tick(500 * time.Millisecond)
-	_continue := make(chan struct{}, 2)
+	ticker := time.Tick(800 * time.Millisecond)
+	_continue := make(chan struct{}, 2000)
 	for {
 		select {
 		case <-ticker:
+			err := RunTrade(db)
+			if err != nil {
+				log.Println("Failed to RunTrade:", err)
+			} else {
+				_continue <- struct{}{}
+			}
 		case <-_continue:
 			err := RunTrade(db)
 			if err != nil {
