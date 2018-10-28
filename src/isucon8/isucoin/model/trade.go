@@ -294,6 +294,8 @@ func handleTrade(db *sql.DB) {
 	}
 }
 
+var ErrInsufficientCount = errors.New("Error: insufficient count")
+
 func RunTrade(db *sql.DB) error {
 	lowestSellOrder, err := GetLowestSellOrder(db)
 	switch {
@@ -343,7 +345,7 @@ func RunTrade(db *sql.DB) error {
 		switch err {
 		case nil:
 			// トレード成立したため次の取引を行う
-			return RunTrade(db)
+			return nil
 		case ErrNoOrderForTrade, ErrOrderAlreadyClosed:
 			// 注文個数の多い方で成立しなかったので少ない方で試す
 			continue
@@ -352,5 +354,5 @@ func RunTrade(db *sql.DB) error {
 		}
 	}
 	// 個数のが不足していて不成立
-	return nil
+	return ErrInsufficientCount
 }
