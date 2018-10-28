@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"sync"
 	"time"
 
 	"isucon8/isucoin/model"
@@ -16,6 +17,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -156,19 +158,39 @@ func (h *Handler) Signout(w http.ResponseWriter, r *http.Request, _ httprouter.P
 	h.handleSuccess(w, struct{}{})
 }
 
-func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+var handleInfoOnce sync.Once
+var group singleflight.Group
+var c = sync.NewCond(new(sync.Mutex))
+
+func (h *Handler) HandleInfo() {
+	handleInfoOnce.Do(func(){
+		go h.handleInfo()
+	})
+}
+
+func (h *Handler) handleInfo() {
+	ticker := time.Tick(800 * time.Millisecond)
+	for {
+		select {
+		case <- ticker:
+			group = singleflight.Group{}
+			c.Broadcast()
+		}
+	}
+}
+
+func (h *Handler) info(_cursor string) (map[string]interface{}, error) {
 	var (
 		err         error
 		lastTradeID int64
 		lt          = time.Unix(0, 0)
 		res         = make(map[string]interface{}, 10)
 	)
-	if _cursor := r.URL.Query().Get("cursor"); _cursor != "" {
+	if _cursor != "" {
 		if lastTradeID, _ = strconv.ParseInt(_cursor, 10, 64); lastTradeID > 0 {
 			trade, err := model.GetTradeByID(h.db, lastTradeID)
 			if err != nil && err != sql.ErrNoRows {
-				h.handleError(w, errors.Wrap(err, "getTradeByID failed"), 500)
-				return
+				return nil, errors.Wrap(err, "getTradeByID failed")
 			}
 			if trade != nil {
 				lt = trade.CreatedAt
@@ -177,25 +199,9 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	}
 	latestTradeID, err := model.GetLatestTradeIDForInfo(h.db)
 	if err != nil {
-		h.handleError(w, errors.Wrap(err, "GetLatestTrade failed"), 500)
-		return
+		return nil, errors.Wrap(err, "GetLatestTrade failed")
 	}
 	res["cursor"] = latestTradeID
-	user, _ := h.userByRequest(r)
-	if user != nil {
-		orders, err := model.GetOrdersByUserIDAndLastTradeId(h.db, user.ID, lastTradeID)
-		if err != nil {
-			h.handleError(w, err, 500)
-			return
-		}
-		for _, order := range orders {
-			if err = model.FetchOrderRelation(h.db, order); err != nil {
-				h.handleError(w, err, 500)
-				return
-			}
-		}
-		res["traded_orders"] = orders
-	}
 
 	bySecTime := BaseTime.Add(-300 * time.Second)
 	if lt.After(bySecTime) {
@@ -203,8 +209,7 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	}
 	res["chart_by_sec"], err = model.GetCandlestickDataBySec(h.db, bySecTime)
 	if err != nil {
-		h.handleError(w, errors.Wrap(err, "model.GetCandlestickData by sec"), 500)
-		return
+		return nil, errors.Wrap(err, "model.GetCandlestickData by sec")
 	}
 
 	byMinTime := BaseTime.Add(-300 * time.Minute)
@@ -213,8 +218,7 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	}
 	res["chart_by_min"], err = model.GetCandlestickDataByMin(h.db, byMinTime)
 	if err != nil {
-		h.handleError(w, errors.Wrap(err, "model.GetCandlestickData by min"), 500)
-		return
+		return nil, errors.Wrap(err, "model.GetCandlestickData by min")
 	}
 
 	byHourTime := BaseTime.Add(-48 * time.Hour)
@@ -223,16 +227,14 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	}
 	res["chart_by_hour"], err = model.GetCandlestickDataByHour(h.db, byHourTime)
 	if err != nil {
-		h.handleError(w, errors.Wrap(err, "model.GetCandlestickData by hour"), 500)
-		return
+		return nil, errors.Wrap(err, "model.GetCandlestickData by hour")
 	}
 
 	lowestSellOrder, err := model.GetLowestSellOrder(h.db)
 	switch {
 	case err == sql.ErrNoRows:
 	case err != nil:
-		h.handleError(w, errors.Wrap(err, "model.GetLowestSellOrder"), 500)
-		return
+		return nil, errors.Wrap(err, "model.GetLowestSellOrder")
 	default:
 		res["lowest_sell_price"] = lowestSellOrder.Price
 	}
@@ -241,8 +243,7 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	switch {
 	case err == sql.ErrNoRows:
 	case err != nil:
-		h.handleError(w, errors.Wrap(err, "model.GetHighestBuyOrder"), 500)
-		return
+		return nil, errors.Wrap(err, "model.GetHighestBuyOrder")
 	default:
 		res["highest_buy_price"] = highestBuyOrder.Price
 	}
@@ -251,6 +252,35 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	enableShare := numGoroutine < concurrencyLimit
 	res["enable_share"] = enableShare
 
+	return res, nil
+}
+
+func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	c.L.Lock()
+	c.Wait()
+	c.L.Unlock()
+	_cursor := r.URL.Query().Get("cursor")
+	v, err, _ := group.Do(_cursor, func() (interface{}, error) {
+		return h.info(_cursor)
+	})
+	if err != nil {
+		h.handleError(w, err, 500)
+	}
+	res := v.(map[string]interface{})
+	lastTradeID := res["cursor"].(int64)
+	user, _ := h.userByRequest(r)
+	if user != nil {
+		orders, err := model.GetOrdersByUserIDAndLastTradeId(h.db, user.ID, lastTradeID)
+		if err != nil {
+			h.handleError(w, err, 500)
+		}
+		for _, order := range orders {
+			if err = model.FetchOrderRelation(h.db, order); err != nil {
+				h.handleError(w, err, 500)
+			}
+		}
+		res["traded_orders"] = orders
+	}
 	h.handleSuccess(w, res)
 }
 
