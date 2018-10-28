@@ -185,6 +185,7 @@ type Res struct {
 	chart_by_sec, chart_by_min, chart_by_hour []model.CandlestickData
 	lowest_sell_price, highest_buy_price int64
 	enable_share bool
+	lastTradeID int64
 }
 
 func (h *Handler) info(_cursor string) (Res, error) {
@@ -203,6 +204,7 @@ func (h *Handler) info(_cursor string) (Res, error) {
 			if trade != nil {
 				lt = trade.CreatedAt
 			}
+			res.lastTradeID = lastTradeID
 		}
 	}
 	latestTradeID, err := model.GetLatestTradeIDForInfo(h.db)
@@ -283,7 +285,7 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	res["lowest_sell_price"] = _res.lowest_sell_price
 	res["highest_buy_price"] = _res.highest_buy_price
 	res["enable_share"] = _res.enable_share
-	lastTradeID := _res.cursor
+	lastTradeID := _res.lastTradeID
 	user, _ := h.userByRequest(r)
 	if user != nil {
 		orders, err := model.GetOrdersByUserIDAndLastTradeId(h.db, user.ID, lastTradeID)
