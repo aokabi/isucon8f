@@ -69,7 +69,7 @@ func UserLogin(d QueryExecutor, bankID, password string) (*User, error) {
 	case err != nil:
 		return nil, err
 	}
-	if user.Failed >= 5 {
+	if user.Failed > 5 {
 		return nil, ErrTooManyFailures
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
@@ -77,7 +77,7 @@ func UserLogin(d QueryExecutor, bankID, password string) (*User, error) {
 			if err := IncrLoginFailed(d, bankID); err != nil {
 				return nil, err
 			}
-			if user.Failed == 4 {
+			if user.Failed == 5 {
 				return nil, ErrTooManyFailures
 			}
 			return nil, ErrUserNotFound
