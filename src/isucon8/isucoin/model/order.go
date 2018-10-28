@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"isucon8/isubank"
 	"time"
-
+	"github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
 )
 
