@@ -278,16 +278,12 @@ func handleTrade(db *sql.DB) {
 		select {
 		case <-ticker:
 			err := RunTrade(db)
-			if err != nil {
-				log.Println("Failed to RunTrade:", err)
-			} else {
+			if err == nil {
 				_continue <- struct{}{}
 			}
 		case <-_continue:
 			err := RunTrade(db)
-			if err != nil {
-				log.Println("Failed to RunTrade:", err)
-			} else {
+			if err == nil {
 				_continue <- struct{}{}
 			}
 		}
