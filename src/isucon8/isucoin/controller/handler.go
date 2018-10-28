@@ -290,9 +290,9 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	res["highest_buy_price"] = _res.highest_buy_price
 	res["enable_share"] = _res.enable_share
 	lastTradeID := _res.lastTradeID
-	user, _ := h.userByRequest(r)
-	if user != nil {
-		orders, err := model.GetOrdersByUserIDAndLastTradeId(h.db, user.ID, lastTradeID)
+	userID := r.Context().Value("user_id")
+	if id, ok := userID.(int64); ok {
+		orders, err := model.GetOrdersByUserIDAndLastTradeId(h.db, id, lastTradeID)
 		if err != nil {
 			log.Println("Failed to GetOrdersByUserIDAndLastTradeId:", err)
 			h.handleError(w, err, 500)
@@ -317,11 +317,17 @@ func (h *Handler) AddOrders(w http.ResponseWriter, r *http.Request, _ httprouter
 		h.handleError(w, errors.New("Not authenticated"), 401)
 		return
 	}
+	b := r.Context().Value("bank_id")
+	bid, ok := b.(string)
+	if !ok {
+		h.handleError(w, errors.New("Failed to read cookie"), 500)
+		return
+	}
 	amount, _ := strconv.ParseInt(r.FormValue("amount"), 10, 64)
 	price, _ := strconv.ParseInt(r.FormValue("price"), 10, 64)
 	var orderID int64
 	err := h.txScope(func(tx *sql.Tx) (err error) {
-		orderID, err = model.AddOrder(tx, r.FormValue("type"), id, amount, price)
+		orderID, err = model.AddOrder(tx, r.FormValue("type"), id, amount, price, bid)
 		return
 	})
 	switch {
@@ -337,12 +343,13 @@ func (h *Handler) AddOrders(w http.ResponseWriter, r *http.Request, _ httprouter
 }
 
 func (h *Handler) GetOrders(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	user, err := h.userByRequest(r)
-	if err != nil {
-		h.handleError(w, err, 401)
+	v := r.Context().Value("user_id")
+	id, ok := v.(int64)
+	if !ok {
+		h.handleError(w, errors.New("Not authenticated"), 401)
 		return
 	}
-	orders, err := model.GetOrdersByUserID(h.db, user.ID)
+	orders, err := model.GetOrdersByUserID(h.db, id)
 	if err != nil {
 		h.handleError(w, err, 500)
 		return
@@ -357,14 +364,15 @@ func (h *Handler) GetOrders(w http.ResponseWriter, r *http.Request, _ httprouter
 }
 
 func (h *Handler) DeleteOrders(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	user, err := h.userByRequest(r)
-	if err != nil {
-		h.handleError(w, err, 401)
+	v := r.Context().Value("user_id")
+	userID, ok := v.(int64)
+	if !ok {
+		h.handleError(w, errors.New("Not authenticated"), 401)
 		return
 	}
 	id, _ := strconv.ParseInt(p.ByName("id"), 10, 64)
-	err = h.txScope(func(tx *sql.Tx) error {
-		return model.DeleteOrder(tx, user.ID, id, "canceled")
+	err := h.txScope(func(tx *sql.Tx) error {
+		return model.DeleteOrder(tx, userID, id, "canceled")
 	})
 	switch {
 	case err == model.ErrOrderNotFound || err == model.ErrOrderAlreadyClosed:
