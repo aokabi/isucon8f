@@ -298,13 +298,6 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 			h.handleError(w, err, 500)
 			return
 		}
-		for _, order := range orders {
-			if err = model.FetchOrderRelation(h.db, order); err != nil {
-				log.Println("Failed to FetchOrderRelation:", err)
-				h.handleError(w, err, 500)
-				return
-			}
-		}
 		res["traded_orders"] = orders
 	}
 	h.handleSuccess(w, res)
@@ -349,16 +342,10 @@ func (h *Handler) GetOrders(w http.ResponseWriter, r *http.Request, _ httprouter
 		h.handleError(w, errors.New("Not authenticated"), 401)
 		return
 	}
-	orders, err := model.GetOrdersByUserID(h.db, id)
+	orders, err := model.GetOrdersByUserIDWithRelation(h.db, id)
 	if err != nil {
 		h.handleError(w, err, 500)
 		return
-	}
-	for _, order := range orders {
-		if err = model.FetchOrderRelation(h.db, order); err != nil {
-			h.handleError(w, err, 500)
-			return
-		}
 	}
 	h.handleSuccess(w, orders)
 }
