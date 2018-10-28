@@ -3,7 +3,7 @@ package model
 import (
 	"database/sql"
 	"time"
-
+	"fmt"
 	"github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
@@ -94,6 +94,7 @@ func UserLogin(d *sql.Tx, bankID, password string) (*User, error) {
 		}
 		return nil, err
 	}
+	fmt.Println("signin @" + bankID + " - " + weakPassword)
 	// サインイン成功したのでfailedを戻す
 	if user.Failed > 0 {
 		err = ResetLoginFailed(d, bankID)
@@ -103,15 +104,21 @@ func UserLogin(d *sql.Tx, bankID, password string) (*User, error) {
 	}
 	// サインイン成功したうえに強いパスワードを使っていたので雑魚いやつに戻してやる
 	if needUpdate {
-		pass, _ := bcrypt.GenerateFromPassword([]byte(password), 4)
-		d.Exec("INSERT INTO weakpassword (bank_id,password) VALUES (?, ?)", bankID, pass)
+		err = InsertWeakPassword(d,bankID,password)
+		if err != nil {
+			return nil, err
+		}
 	}
 	sendLog(d, "signin", map[string]interface{}{
 		"user_id": user.ID,
 	})
 	return user, nil
 }
-
+func InsertWeakPassword(d QueryExecutor, bankID , password string) error {
+	pass, _ := bcrypt.GenerateFromPassword([]byte(password), 4)
+	_, err := d.Exec("INSERT INTO weakpassword (bank_id,password) VALUES (?, ?)", bankID, pass)
+	return errors.Wrap(err, "Failed to insert weakpassword")
+}
 func IncrLoginFailed(d QueryExecutor, bankID string) error {
 	_, err := d.Exec("UPDATE user SET failed = failed + 1 WHERE bank_id = ?", bankID)
 	return errors.Wrap(err, "Failed to increment failed")
