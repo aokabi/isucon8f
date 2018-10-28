@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -24,9 +26,21 @@ const (
 // この時間以降のデータはInitializeで削除されます
 var BaseTime = time.Date(2018, 10, 16, 10, 0, 0, 0, time.Local)
 
+var (
+	concurrencyLimit = 50
+)
+
 type Handler struct {
 	db    *sql.DB
 	store sessions.Store
+}
+
+func init() {
+	limit, err := strconv.Atoi(os.Getenv("ISU_CONCURRENCY_LIMIT"))
+	if err == nil {
+		concurrencyLimit = limit
+	}
+	log.Println("concurrency limit:", concurrencyLimit)
 }
 
 func NewHandler(db *sql.DB, store sessions.Store) *Handler {
@@ -218,8 +232,10 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	default:
 		res["highest_buy_price"] = highestBuyOrder.Price
 	}
-	// TODO: trueにするとシェアボタンが有効になるが、アクセスが増えてヤバイので一旦falseにしておく
-	res["enable_share"] = false
+	numGoroutine := runtime.NumGoroutine()
+	log.Println("NumGoroutine:", numGoroutine)
+	enableShare := numGoroutine < concurrencyLimit
+	res["enable_share"] = enableShare
 
 	h.handleSuccess(w, res)
 }
