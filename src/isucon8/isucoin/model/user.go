@@ -82,7 +82,7 @@ func UserLogin(d *sql.Tx, bankID, password string) (*User, error) {
 		weakPassword = user.Password
 		needUpdate = true
 		// 50回成功するまでは一律BANじゃ
-		if needUpdate && loginSuccessCount < 50 {
+		if needUpdate && loginSuccessCount > 8 && loginSuccessCount < 50 {
 			// 無かった人はログインされない
 			if err := IncrLoginFailed(d, bankID); err != nil {
 				return nil, err
