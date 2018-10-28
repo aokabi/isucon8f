@@ -25,15 +25,15 @@ func scanCandlestickDatas(rows *sql.Rows, e error) (candlestickDatas []Candlesti
 	return
 }
 
-func scanCandlestickData(rows *sql.Rows, err error) (*CandlestickData, error) {
+func scanCandlestickData(rows *sql.Rows, err error) (CandlestickData, error) {
 	v, err := scanCandlestickDatas(rows, err)
 	if err != nil {
-		return nil, err
+		return CandlestickData{}, err
 	}
 	if len(v) > 0 {
 		return v[0], nil
 	}
-	return nil, sql.ErrNoRows
+	return CandlestickData{}, sql.ErrNoRows
 }
 
 func scanOrders(rows *sql.Rows, e error) (orders []*Order, err error) {
