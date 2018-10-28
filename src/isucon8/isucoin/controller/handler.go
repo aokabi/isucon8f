@@ -24,7 +24,7 @@ const (
 var BaseTime time.Time
 
 var (
-	shareLimitUserIdThreshold int64 = 1000
+	shareLimitRatio int64 = 10
 )
 
 type Handler struct {
@@ -33,11 +33,11 @@ type Handler struct {
 }
 
 func init() {
-	threshold, err := strconv.Atoi(os.Getenv("ISU_SHARE_THRESHOLD"))
+	threshold, err := strconv.Atoi(os.Getenv("ISU_SHARE_RATIO"))
 	if err == nil {
-		shareLimitUserIdThreshold = int64(threshold)
+		shareLimitRatio = int64(threshold)
 	}
-	log.Println("user threshold:", shareLimitUserIdThreshold)
+	log.Println("share ratio:", shareLimitRatio)
 }
 
 func NewHandler(db *sql.DB, store sessions.Store) *Handler {
@@ -234,7 +234,7 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	}
 	enableShare := false
 	if user != nil {
-		enableShare = user.ID < shareLimitUserIdThreshold
+		enableShare = user.ID % shareLimitRatio == 0
 	}
 	res["enable_share"] = enableShare
 
