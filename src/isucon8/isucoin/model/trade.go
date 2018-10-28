@@ -31,10 +31,6 @@ func GetTradeByID(d QueryExecutor, id int64) (*Trade, error) {
 	return scanTrade(d.Query("SELECT * FROM trade WHERE id = ?", id))
 }
 
-func GetLatestTrade(d QueryExecutor) (*Trade, error) {
-	return scanTrade(d.Query("SELECT * FROM trade ORDER BY id DESC"))
-}
-
 func GetLatestTradeIDForInfo(db *sql.DB) (int64, error) {
 	var id int64
 	err := db.QueryRow("SELECT id FROM trade ORDER BY id DESC LIMIT 1").Scan(&id)
@@ -51,43 +47,6 @@ func GetCandlestickDataByMin(d QueryExecutor, mt time.Time) ([]CandlestickData, 
 
 func GetCandlestickDataByHour(d QueryExecutor, mt time.Time) ([]CandlestickData, error) {
 	return scanCandlestickDatas(d.Query(`SELECT * FROM candlestick_by_hour WHERE t >= ?`, mt))
-}
-
-func HasTradeChanceByOrder(d QueryExecutor, orderID int64) (bool, error) {
-	order, err := GetOrderByID(d, orderID)
-	if err != nil {
-		return false, err
-	}
-
-	lowest, err := GetLowestSellOrder(d)
-	switch {
-	case err == sql.ErrNoRows:
-		return false, nil
-	case err != nil:
-		return false, errors.Wrap(err, "GetLowestSellOrder")
-	}
-
-	highest, err := GetHighestBuyOrder(d)
-	switch {
-	case err == sql.ErrNoRows:
-		return false, nil
-	case err != nil:
-		return false, errors.Wrap(err, "GetHighestBuyOrder")
-	}
-
-	switch order.Type {
-	case OrderTypeBuy:
-		if lowest.Price <= order.Price {
-			return true, nil
-		}
-	case OrderTypeSell:
-		if order.Price <= highest.Price {
-			return true, nil
-		}
-	default:
-		return false, errors.Errorf("other type [%s]", order.Type)
-	}
-	return false, nil
 }
 
 func reserveOrder(d QueryExecutor, order *Order, price int64) (int64, error) {
