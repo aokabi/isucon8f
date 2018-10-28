@@ -32,7 +32,7 @@ type Isulogger struct {
 
 var (
 	once sync.Once
-	globalIsuLogger *Isulogger
+	globalIsuLogger = &Isulogger{}
 	enqueueCh = make(chan Log, 10000)
 )
 
