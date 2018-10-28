@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -15,6 +16,7 @@ type User struct {
 	Name      string    `json:"name"`
 	Password  string    `json:"-"`
 	CreatedAt time.Time `json:"-"`
+	Failed    int64     `json:"-"`
 }
 
 func GetUserByID(d QueryExecutor, id int64) (*User, error) {
@@ -38,7 +40,7 @@ func UserSignup(tx *sql.Tx, name, bankID, password string) error {
 	if err != nil {
 		return err
 	}
-	if res, err := tx.Exec(`INSERT INTO user (bank_id, name, password, created_at) VALUES (?, ?, ?, NOW(6))`, bankID, name, pass); err != nil {
+	if res, err := tx.Exec(`INSERT INTO user (bank_id, name, password, created_at, failed) VALUES (?, ?, ?, NOW(6), 0)`, bankID, name, pass); err != nil {
 		if mysqlError, ok := err.(*mysql.MySQLError); ok {
 			if mysqlError.Number == 1062 {
 				return ErrBankUserConflict
@@ -59,7 +61,7 @@ func UserSignup(tx *sql.Tx, name, bankID, password string) error {
 	return nil
 }
 
-func UserLogin(d *sql.DB, bankID, password string) (*User, error) {
+func UserLogin(d *sql.Tx, bankID, password string) (*User, error) {
 	user, err := scanUser(d.Query("SELECT * FROM user WHERE bank_id = ?", bankID))
 	switch {
 	case err == sql.ErrNoRows:
@@ -67,29 +69,55 @@ func UserLogin(d *sql.DB, bankID, password string) (*User, error) {
 	case err != nil:
 		return nil, err
 	}
-	var weakPassword string
+	if user.Failed > 5 {
+		return nil, ErrTooManyFailures
+	}
+	weakPassword := user.Password
 	needUpdate := false
-	if err := d.QueryRow("SELECT password FROM weakpassword WHERE bank_id = ?", bankID).Scan(&weakPassword);err != nil {
-		// なかった
-		weakPassword = user.Password
-		needUpdate = true
+	// "$2a$04$"
+	if user.Password[4] != '0' || user.Password[5] != '4' {
+		if err := d.QueryRow("SELECT password FROM weakpassword WHERE bank_id = ?", bankID).Scan(&weakPassword);err != nil {
+			// なかったので追加
+			weakPassword = user.Password
+			needUpdate = true
+		}
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(weakPassword), []byte(password)); err != nil {
 		if err == bcrypt.ErrMismatchedHashAndPassword {
+			if err := IncrLoginFailed(d, bankID); err != nil {
+				return nil, err
+			}
+			if user.Failed == 5 {
+				return nil, ErrTooManyFailures
+			}
 			return nil, ErrUserNotFound
 		}
 		return nil, err
 	}
+	// サインイン成功したのでfailedを戻す
+	if user.Failed > 0 {
+		err = ResetLoginFailed(d, bankID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// サインイン成功したうえに強いパスワードを使っていたので雑魚いやつに戻してやる
 	if needUpdate {
 		pass, _ := bcrypt.GenerateFromPassword([]byte(password), 4)
-		tx, err := d.Begin()
-		if err == nil {
-			tx.Exec("INSERT INTO weakpassword (bank_id,password) VALUES (?, ?)", bankID, pass)
-			tx.Commit()
-		}
+		d.Exec("INSERT INTO weakpassword (bank_id,password) VALUES (?, ?)", bankID, pass)
 	}
 	sendLog(d, "signin", map[string]interface{}{
 		"user_id": user.ID,
 	})
 	return user, nil
+}
+
+func IncrLoginFailed(d QueryExecutor, bankID string) error {
+	_, err := d.Exec("UPDATE user SET failed = failed + 1 WHERE bank_id = ?", bankID)
+	return errors.Wrap(err, "Failed to increment failed")
+}
+
+func ResetLoginFailed(d QueryExecutor, bankID string) error {
+	_, err := d.Exec("UPDATE user SET failed = 0 WHERE bank_id = ?", bankID)
+	return errors.Wrap(err, "Failed to increment failed")
 }

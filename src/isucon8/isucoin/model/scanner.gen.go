@@ -144,7 +144,7 @@ func scanUsers(rows *sql.Rows, e error) (users []*User, err error) {
 	users = []*User{}
 	for rows.Next() {
 		var v User
-		if err = rows.Scan(&v.ID, &v.BankID, &v.Name, &v.Password, &v.CreatedAt); err != nil {
+		if err = rows.Scan(&v.ID, &v.BankID, &v.Name, &v.Password, &v.CreatedAt, &v.Failed); err != nil {
 			return
 		}
 		users = append(users, &v)
