@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"isucon8/isubank"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -262,6 +263,39 @@ func tryTrade(tx *sql.Tx, orderID int64) error {
 	return nil
 }
 
+var handleTradeOnce sync.Once
+
+func HandleTrade(db *sql.DB) {
+	handleTradeOnce.Do(func(){
+		go handleTrade(db)
+	})
+}
+
+func handleTrade(db *sql.DB) {
+	ticker := time.Tick(800 * time.Millisecond)
+	_continue := make(chan struct{}, 2000)
+	for {
+		select {
+		case <-ticker:
+			err := RunTrade(db)
+			if err != nil {
+				log.Println("Failed to RunTrade:", err)
+			} else {
+				_continue <- struct{}{}
+			}
+		case <-_continue:
+			err := RunTrade(db)
+			if err != nil {
+				log.Println("Failed to RunTrade:", err)
+			} else {
+				_continue <- struct{}{}
+			}
+		}
+	}
+}
+
+var ErrInsufficientCount = errors.New("Error: insufficient count")
+
 func RunTrade(db *sql.DB) error {
 	lowestSellOrder, err := GetLowestSellOrder(db)
 	switch {
@@ -311,7 +345,7 @@ func RunTrade(db *sql.DB) error {
 		switch err {
 		case nil:
 			// トレード成立したため次の取引を行う
-			return RunTrade(db)
+			return nil
 		case ErrNoOrderForTrade, ErrOrderAlreadyClosed:
 			// 注文個数の多い方で成立しなかったので少ない方で試す
 			continue
@@ -320,5 +354,5 @@ func RunTrade(db *sql.DB) error {
 		}
 	}
 	// 個数のが不足していて不成立
-	return nil
+	return ErrInsufficientCount
 }
