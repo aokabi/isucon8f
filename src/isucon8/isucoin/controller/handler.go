@@ -178,8 +178,6 @@ func (h *Handler) handleInfo() {
 		case <- ticker:
 			group = singleflight.Group{}
 			c.Broadcast()
-			log.Println("Connection: InUse:", h.db.Stats().InUse)
-			log.Println("Connection: Idle::", h.db.Stats().Idle)
 		}
 	}
 }
