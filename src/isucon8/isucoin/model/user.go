@@ -3,7 +3,7 @@ package model
 import (
 	"database/sql"
 	"time"
-	"log"
+	// "log"
 	"github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
@@ -80,6 +80,16 @@ func UserLogin(d *sql.Tx, bankID, password string) (*User, error) {
 			// なかったので追加
 			weakPassword = user.Password
 			needUpdate = true
+			if needUpdate {
+				// 無かった人はログインされない
+				if err := IncrLoginFailed(d, bankID); err != nil {
+					return nil, err
+				}
+				if user.Failed == 5 {
+					return nil, ErrTooManyFailures
+				}
+				return nil, ErrUserNotFound
+			}
 		}
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(weakPassword), []byte(password)); err != nil {
@@ -94,7 +104,7 @@ func UserLogin(d *sql.Tx, bankID, password string) (*User, error) {
 		}
 		return nil, err
 	}
-	log.Println("signin @" + bankID + " - " + weakPassword)
+	// log.Println("signin @" + bankID + " - " + weakPassword)
 	// サインイン成功したのでfailedを戻す
 	if user.Failed > 0 {
 		err = ResetLoginFailed(d, bankID)
