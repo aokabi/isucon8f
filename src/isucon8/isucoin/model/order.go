@@ -141,16 +141,34 @@ func getOpenOrderByID(tx *sql.Tx, id int64) (*Order, error) {
 	return order, nil
 }
 
+
+func myScanOrder(row *sql.Row) (*Order, error) {
+	var v Order
+	var closedAt mysql.NullTime
+	var tradeID sql.NullInt64
+	if err := row.Scan(&v.ID, &v.Type, &v.UserID, &v.Amount, &v.Price, &closedAt, &tradeID, &v.CreatedAt); err != nil {
+		return nil, err
+	}
+	if closedAt.Valid {
+		v.ClosedAt = &closedAt.Time
+	}
+	if tradeID.Valid {
+		v.TradeID = tradeID.Int64
+	}
+	return &v,nil
+}
+
+
 func getOrderByIDWithLock(tx *sql.Tx, id int64) (*Order, error) {
 	return scanOrder(tx.Query("SELECT * FROM orders WHERE id = ? FOR UPDATE", id))
 }
 
 func GetLowestSellOrder(d QueryExecutor) (*Order, error) {
-	return scanOrder(d.Query("SELECT * FROM orders WHERE type = ? AND closed_at IS NULL ORDER BY price ASC, created_at ASC LIMIT 1", OrderTypeSell))
+	return myScanOrder(d.QueryRow("SELECT * FROM orders WHERE type = ? AND closed_at IS NULL ORDER BY price ASC, created_at ASC LIMIT 1", OrderTypeSell))
 }
 
 func GetHighestBuyOrder(d QueryExecutor) (*Order, error) {
-	return scanOrder(d.Query("SELECT * FROM orders WHERE type = ? AND closed_at IS NULL ORDER BY price DESC, created_at ASC LIMIT 1", OrderTypeBuy))
+	return myScanOrder(d.QueryRow("SELECT * FROM orders WHERE type = ? AND closed_at IS NULL ORDER BY price DESC, created_at ASC LIMIT 1", OrderTypeBuy))
 }
 
 func AddOrder(tx *sql.Tx, ot string, userID, amount, price int64, bankID string) (int64, error) {
