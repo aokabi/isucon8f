@@ -33,7 +33,7 @@ type Isulogger struct {
 var (
 	once sync.Once
 	globalIsuLogger *Isulogger
-	enqueueCh = make(chan interface{}, 10000)
+	enqueueCh = make(chan Log, 10000)
 )
 
 // NewIsulogger はIsuloggerを初期化します
@@ -65,23 +65,27 @@ func (b *Isulogger) Send(tag string, data interface{}) error {
 }
 
 func (b *Isulogger) Enqueue(tag string, data interface{}) error {
-	enqueueCh <- data
+	enqueueCh <- Log{
+		Tag:  tag,
+		Time: time.Now(),
+		Data: data,
+	}
 	return nil
 }
 
 func (b *Isulogger) handleLogs() {
-	logs := make([]interface{}, 0, 10000)
+	logs := make([]Log, 0, 10000)
 	ticker := time.Tick(9 * time.Second)
 	for {
 		select {
-		case data := <- enqueueCh:
-			logs = append(logs, data)
+		case _log := <- enqueueCh:
+			logs = append(logs, _log)
 		case <- ticker:
 			err := b.request("/send_bulk", logs)
 			if err != nil {
 				log.Println("[WARN] Failed to send logs:", err)
 			} else {
-				logs = make([]interface{}, 0, 10000)
+				logs = make([]Log, 0, 10000)
 			}
 		}
 	}
