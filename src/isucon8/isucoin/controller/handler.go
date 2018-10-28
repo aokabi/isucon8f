@@ -53,6 +53,7 @@ func NewHandler(db *sql.DB, store sessions.Store, _handleTrade bool) *Handler {
 	if _handleTrade {
 		model.HandleTrade(h.db)
 	}
+	h.handleInfo()
 	return h
 }
 
