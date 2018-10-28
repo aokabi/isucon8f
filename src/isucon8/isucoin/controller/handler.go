@@ -255,7 +255,7 @@ func (h *Handler) info(_cursor string) (Res, error) {
 	case err != nil:
 		return Res{}, errors.Wrap(err, "model.GetHighestBuyOrder")
 	default:
-		res.lowest_sell_price = highestBuyOrder.Price
+		res.highest_buy_price = highestBuyOrder.Price
 	}
 	numGoroutine := runtime.NumGoroutine()
 	log.Println("NumGoroutine:", numGoroutine)
