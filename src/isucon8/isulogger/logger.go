@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"path"
+	"sync"
 	"time"
 )
 
@@ -23,9 +25,16 @@ type Log struct {
 }
 
 type Isulogger struct {
+	sync.RWMutex
 	endpoint *url.URL
 	appID    string
 }
+
+var (
+	once sync.Once
+	globalIsuLogger *Isulogger
+	enqueueCh = make(chan interface{}, 10000)
+)
 
 // NewIsulogger はIsuloggerを初期化します
 //
@@ -36,10 +45,14 @@ func NewIsulogger(endpoint, appID string) (*Isulogger, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Isulogger{
-		endpoint: u,
-		appID:    appID,
-	}, nil
+	once.Do(func(){
+		go globalIsuLogger.handleLogs()
+	})
+	globalIsuLogger.Lock()
+	globalIsuLogger.endpoint = u
+	globalIsuLogger.appID = appID
+	globalIsuLogger.Unlock()
+	return globalIsuLogger, nil
 }
 
 // Send はログを送信します
@@ -51,7 +64,32 @@ func (b *Isulogger) Send(tag string, data interface{}) error {
 	})
 }
 
+func (b *Isulogger) Enqueue(tag string, data interface{}) error {
+	enqueueCh <- data
+	return nil
+}
+
+func (b *Isulogger) handleLogs() {
+	logs := make([]interface{}, 0, 10000)
+	ticker := time.Tick(9 * time.Second)
+	for {
+		select {
+		case data := <- enqueueCh:
+			logs = append(logs, data)
+		case <- ticker:
+			err := b.request("/send_bulk", logs)
+			if err != nil {
+				log.Println("[WARN] Failed to send logs:", err)
+			} else {
+				logs = make([]interface{}, 0, 10000)
+			}
+		}
+	}
+}
+
 func (b *Isulogger) request(p string, v interface{}) error {
+	b.RLock()
+	defer b.RUnlock()
 	u := new(url.URL)
 	*u = *b.endpoint
 	u.Path = path.Join(u.Path, p)
