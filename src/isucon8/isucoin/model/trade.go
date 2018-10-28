@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"isucon8/isubank"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -260,6 +261,31 @@ func tryTrade(tx *sql.Tx, orderID int64) error {
 	}
 	reserves = reserves[:0]
 	return nil
+}
+
+var handleTradeOnce sync.Once
+
+func HandleTrade(db *sql.DB) {
+	handleTradeOnce.Do(func(){
+		go handleTrade(db)
+	})
+}
+
+func handleTrade(db *sql.DB) {
+	ticker := time.Tick(500 * time.Millisecond)
+	_continue := make(chan struct{}, 2)
+	for {
+		select {
+		case <-ticker:
+		case <-_continue:
+			err := RunTrade(db)
+			if err != nil {
+				log.Println("Failed to RunTrade:", err)
+			} else {
+				_continue <- struct{}{}
+			}
+		}
+	}
 }
 
 func RunTrade(db *sql.DB) error {

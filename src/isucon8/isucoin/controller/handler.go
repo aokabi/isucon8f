@@ -44,10 +44,12 @@ func init() {
 }
 
 func NewHandler(db *sql.DB, store sessions.Store) *Handler {
-	return &Handler{
+	h := &Handler{
 		db:    db,
 		store: store,
 	}
+	model.HandleTrade(h.db)
+	return h
 }
 
 func (h *Handler) Initialize(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -269,17 +271,6 @@ func (h *Handler) AddOrders(w http.ResponseWriter, r *http.Request, _ httprouter
 	case err != nil:
 		h.handleError(w, err, 500)
 	default:
-		tradeChance, err := model.HasTradeChanceByOrder(h.db, order.ID)
-		if err != nil {
-			h.handleError(w, err, 500)
-			return
-		}
-		if tradeChance {
-			if err := model.RunTrade(h.db); err != nil {
-				// トレードに失敗してもエラーにはしない
-				log.Printf("runTrade err:%s", err)
-			}
-		}
 		h.handleSuccess(w, map[string]interface{}{
 			"id": order.ID,
 		})
