@@ -6,20 +6,20 @@ import (
 	"github.com/go-sql-driver/mysql"
 )
 
-func scanCandlestickDatas(rows *sql.Rows, e error) (candlestickDatas []*CandlestickData, err error) {
+func scanCandlestickDatas(rows *sql.Rows, e error) (candlestickDatas []CandlestickData, err error) {
 	if e != nil {
 		return nil, e
 	}
 	defer func() {
 		err = rows.Close()
 	}()
-	candlestickDatas = []*CandlestickData{}
+	candlestickDatas = []CandlestickData{}
 	for rows.Next() {
 		var v CandlestickData
 		if err = rows.Scan(&v.Time, &v.Open, &v.Close, &v.High, &v.Low); err != nil {
 			return
 		}
-		candlestickDatas = append(candlestickDatas, &v)
+		candlestickDatas = append(candlestickDatas, v)
 	}
 	err = rows.Err()
 	return

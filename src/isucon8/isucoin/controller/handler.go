@@ -180,18 +180,25 @@ func (h *Handler) handleInfo() {
 	}
 }
 
-func (h *Handler) info(_cursor string) (map[string]interface{}, error) {
+type Res struct {
+	cursor int64
+	chart_by_sec, chart_by_min, chart_by_hour []model.CandlestickData
+	lowest_sell_price, highest_buy_price int64
+	enable_share bool
+}
+
+func (h *Handler) info(_cursor string) (Res, error) {
 	var (
 		err         error
 		lastTradeID int64
 		lt          = time.Unix(0, 0)
-		res         = make(map[string]interface{}, 10)
+		res         Res
 	)
 	if _cursor != "" {
 		if lastTradeID, _ = strconv.ParseInt(_cursor, 10, 64); lastTradeID > 0 {
 			trade, err := model.GetTradeByID(h.db, lastTradeID)
 			if err != nil && err != sql.ErrNoRows {
-				return nil, errors.Wrap(err, "getTradeByID failed")
+				return Res{}, errors.Wrap(err, "getTradeByID failed")
 			}
 			if trade != nil {
 				lt = trade.CreatedAt
@@ -200,58 +207,58 @@ func (h *Handler) info(_cursor string) (map[string]interface{}, error) {
 	}
 	latestTradeID, err := model.GetLatestTradeIDForInfo(h.db)
 	if err != nil {
-		return nil, errors.Wrap(err, "GetLatestTrade failed")
+		return Res{}, errors.Wrap(err, "GetLatestTrade failed")
 	}
-	res["cursor"] = latestTradeID
+	res.cursor = latestTradeID
 
 	bySecTime := BaseTime.Add(-300 * time.Second)
 	if lt.After(bySecTime) {
 		bySecTime = time.Date(lt.Year(), lt.Month(), lt.Day(), lt.Hour(), lt.Minute(), lt.Second(), 0, lt.Location())
 	}
-	res["chart_by_sec"], err = model.GetCandlestickDataBySec(h.db, bySecTime)
+	res.chart_by_sec, err = model.GetCandlestickDataBySec(h.db, bySecTime)
 	if err != nil {
-		return nil, errors.Wrap(err, "model.GetCandlestickData by sec")
+		return Res{}, errors.Wrap(err, "model.GetCandlestickData by sec")
 	}
 
 	byMinTime := BaseTime.Add(-300 * time.Minute)
 	if lt.After(byMinTime) {
 		byMinTime = time.Date(lt.Year(), lt.Month(), lt.Day(), lt.Hour(), lt.Minute(), 0, 0, lt.Location())
 	}
-	res["chart_by_min"], err = model.GetCandlestickDataByMin(h.db, byMinTime)
+	res.chart_by_min, err = model.GetCandlestickDataByMin(h.db, byMinTime)
 	if err != nil {
-		return nil, errors.Wrap(err, "model.GetCandlestickData by min")
+		return Res{}, errors.Wrap(err, "model.GetCandlestickData by min")
 	}
 
 	byHourTime := BaseTime.Add(-48 * time.Hour)
 	if lt.After(byHourTime) {
 		byHourTime = time.Date(lt.Year(), lt.Month(), lt.Day(), lt.Hour(), 0, 0, 0, lt.Location())
 	}
-	res["chart_by_hour"], err = model.GetCandlestickDataByHour(h.db, byHourTime)
+	res.chart_by_hour, err = model.GetCandlestickDataByHour(h.db, byHourTime)
 	if err != nil {
-		return nil, errors.Wrap(err, "model.GetCandlestickData by hour")
+		return Res{}, errors.Wrap(err, "model.GetCandlestickData by hour")
 	}
 
 	lowestSellOrder, err := model.GetLowestSellOrder(h.db)
 	switch {
 	case err == sql.ErrNoRows:
 	case err != nil:
-		return nil, errors.Wrap(err, "model.GetLowestSellOrder")
+		return Res{}, errors.Wrap(err, "model.GetLowestSellOrder")
 	default:
-		res["lowest_sell_price"] = lowestSellOrder.Price
+		res.lowest_sell_price = lowestSellOrder.Price
 	}
 
 	highestBuyOrder, err := model.GetHighestBuyOrder(h.db)
 	switch {
 	case err == sql.ErrNoRows:
 	case err != nil:
-		return nil, errors.Wrap(err, "model.GetHighestBuyOrder")
+		return Res{}, errors.Wrap(err, "model.GetHighestBuyOrder")
 	default:
-		res["highest_buy_price"] = highestBuyOrder.Price
+		res.lowest_sell_price = highestBuyOrder.Price
 	}
 	numGoroutine := runtime.NumGoroutine()
 	log.Println("NumGoroutine:", numGoroutine)
 	enableShare := numGoroutine < concurrencyLimit
-	res["enable_share"] = enableShare
+	res.enable_share = enableShare
 
 	return res, nil
 }
@@ -267,8 +274,16 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	if err != nil {
 		h.handleError(w, err, 500)
 	}
-	res := v.(map[string]interface{})
-	lastTradeID := res["cursor"].(int64)
+	_res := v.(Res)
+	res := make(map[string]interface{})
+	res["cursor"] = _res.cursor
+	res["chart_by_sec"] = _res.chart_by_sec
+	res["chart_by_min"] = _res.chart_by_min
+	res["chart_by_hour"] = _res.chart_by_hour
+	res["lowest_sell_price"] = _res.lowest_sell_price
+	res["highest_buy_price"] = _res.highest_buy_price
+	res["enable_share"] = _res.enable_share
+	lastTradeID := _res.cursor
 	user, _ := h.userByRequest(r)
 	if user != nil {
 		orders, err := model.GetOrdersByUserIDAndLastTradeId(h.db, user.ID, lastTradeID)

@@ -41,15 +41,15 @@ func GetLatestTradeIDForInfo(db *sql.DB) (int64, error) {
 	return id, err
 }
 
-func GetCandlestickDataBySec(d QueryExecutor, mt time.Time) ([]*CandlestickData, error) {
+func GetCandlestickDataBySec(d QueryExecutor, mt time.Time) ([]CandlestickData, error) {
 	return scanCandlestickDatas(d.Query(`SELECT * FROM candlestick_by_sec WHERE t >= ?`, mt))
 }
 
-func GetCandlestickDataByMin(d QueryExecutor, mt time.Time) ([]*CandlestickData, error) {
+func GetCandlestickDataByMin(d QueryExecutor, mt time.Time) ([]CandlestickData, error) {
 	return scanCandlestickDatas(d.Query(`SELECT * FROM candlestick_by_min WHERE t >= ?`, mt))
 }
 
-func GetCandlestickDataByHour(d QueryExecutor, mt time.Time) ([]*CandlestickData, error) {
+func GetCandlestickDataByHour(d QueryExecutor, mt time.Time) ([]CandlestickData, error) {
 	return scanCandlestickDatas(d.Query(`SELECT * FROM candlestick_by_hour WHERE t >= ?`, mt))
 }
 
