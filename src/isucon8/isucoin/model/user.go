@@ -3,7 +3,7 @@ package model
 import (
 	"database/sql"
 	"time"
-	// "log"
+	"log"
 	"sync"
 	"github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
@@ -81,17 +81,18 @@ func UserLogin(d *sql.Tx, bankID, password string) (*User, error) {
 		// なかったので追加
 		weakPassword = user.Password
 		needUpdate = true
+		log.Println("signin? @" + bankID + "-" + password +  "-" + weakPassword )
 		// 50回成功するまでは一律BANじゃ
-		if needUpdate && loginSuccessCount > 8 && loginSuccessCount < 50 {
-			// 無かった人はログインされない
-			if err := IncrLoginFailed(d, bankID); err != nil {
-				return nil, err
-			}
-			if user.Failed == 5 {
-				return nil, ErrTooManyFailures
-			}
-			return nil, bcrypt.ErrMismatchedHashAndPassword
-		}
+		// if needUpdate && loginSuccessCount > 8 && loginSuccessCount < 50 {
+		// 	// 無かった人はログインされない
+		// 	if err := IncrLoginFailed(d, bankID); err != nil {
+		// 		return nil, err
+		// 	}
+		// 	if user.Failed == 5 {
+		// 		return nil, ErrTooManyFailures
+		// 	}
+		// 	return nil, bcrypt.ErrMismatchedHashAndPassword
+		// }
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(weakPassword), []byte(password)); err != nil {
 		if err == bcrypt.ErrMismatchedHashAndPassword {
