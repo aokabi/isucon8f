@@ -26,7 +26,9 @@ func GetUserByID(d *sql.DB, id int64) (*User, error) {
 }
 
 func getUserByIDWithLock(tx *sql.Tx, id int64) (*User, error) {
-	return scanUser(tx.Query("SELECT * FROM user WHERE id = ? FOR UPDATE", id))
+	var v User
+	err := tx.QueryRow("SELECT * FROM user WHERE id = ? LIMIT 1", id).Scan(&v.ID, &v.BankID, &v.Name, &v.Password, &v.CreatedAt, &v.Failed)
+	return &v, err
 }
 
 func UserSignup(tx *sql.Tx, name, bankID, password string) error {

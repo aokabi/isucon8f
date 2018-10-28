@@ -81,17 +81,17 @@ func FetchOrderRelation(d *sql.DB, order *Order) error {
 	return nil
 }
 
-func AddOrder(tx *sql.Tx, ot string, userID, amount, price int64) (*Order, error) {
+func AddOrder(tx *sql.Tx, ot string, userID, amount, price int64) (int64, error) {
 	if amount <= 0 || price <= 0 {
-		return nil, ErrParameterInvalid
+		return 0, ErrParameterInvalid
 	}
 	user, err := getUserByIDWithLock(tx, userID)
 	if err != nil {
-		return nil, errors.Wrapf(err, "getUserByIDWithLock failed. id:%d", userID)
+		return 0, errors.Wrapf(err, "getUserByIDWithLock failed. id:%d", userID)
 	}
 	bank, err := Isubank(tx)
 	if err != nil {
-		return nil, errors.Wrap(err, "newIsubank failed")
+		return 0, errors.Wrap(err, "newIsubank failed")
 	}
 	switch ot {
 	case OrderTypeBuy:
@@ -104,22 +104,22 @@ func AddOrder(tx *sql.Tx, ot string, userID, amount, price int64) (*Order, error
 				"price":   price,
 			})
 			if err == isubank.ErrCreditInsufficient {
-				return nil, ErrCreditInsufficient
+				return 0, ErrCreditInsufficient
 			}
-			return nil, errors.Wrap(err, "isubank check failed")
+			return 0, errors.Wrap(err, "isubank check failed")
 		}
 	case OrderTypeSell:
 		// TODO 椅子の保有チェック
 	default:
-		return nil, ErrParameterInvalid
+		return 0, ErrParameterInvalid
 	}
 	res, err := tx.Exec(`INSERT INTO orders (type, user_id, amount, price, created_at) VALUES (?, ?, ?, ?, NOW(6))`, ot, user.ID, amount, price)
 	if err != nil {
-		return nil, errors.Wrap(err, "insert order failed")
+		return 0, errors.Wrap(err, "insert order failed")
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return nil, errors.Wrap(err, "get order_id failed")
+		return 0, errors.Wrap(err, "get order_id failed")
 	}
 	sendLog(tx, ot+".order", map[string]interface{}{
 		"order_id": id,
@@ -127,7 +127,7 @@ func AddOrder(tx *sql.Tx, ot string, userID, amount, price int64) (*Order, error
 		"amount":   amount,
 		"price":    price,
 	})
-	return GetOrderByID(tx, id)
+	return id, nil
 }
 
 func DeleteOrder(tx *sql.Tx, userID, orderID int64, reason string) error {

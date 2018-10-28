@@ -309,16 +309,17 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 }
 
 func (h *Handler) AddOrders(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	user, err := h.userByRequest(r)
-	if err != nil {
-		h.handleError(w, err, 401)
+	v := r.Context().Value("user_id")
+	id, ok := v.(int64)
+	if !ok {
+		h.handleError(w, errors.New("Not authenticated"), 401)
 		return
 	}
 	amount, _ := strconv.ParseInt(r.FormValue("amount"), 10, 64)
 	price, _ := strconv.ParseInt(r.FormValue("price"), 10, 64)
-	var order *model.Order
-	err = h.txScope(func(tx *sql.Tx) (err error) {
-		order, err = model.AddOrder(tx, r.FormValue("type"), user.ID, amount, price)
+	var orderID int64
+	err := h.txScope(func(tx *sql.Tx) (err error) {
+		orderID, err = model.AddOrder(tx, r.FormValue("type"), id, amount, price)
 		return
 	})
 	switch {
@@ -328,7 +329,7 @@ func (h *Handler) AddOrders(w http.ResponseWriter, r *http.Request, _ httprouter
 		h.handleError(w, err, 500)
 	default:
 		h.handleSuccess(w, map[string]interface{}{
-			"id": order.ID,
+			"id": orderID,
 		})
 	}
 }
