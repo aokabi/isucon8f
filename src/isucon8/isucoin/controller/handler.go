@@ -178,6 +178,8 @@ func (h *Handler) handleInfo() {
 		case <- ticker:
 			group = singleflight.Group{}
 			c.Broadcast()
+			log.Println("Connection: InUse:", h.db.Stats().InUse)
+			log.Println("Connection: Idle::", h.db.Stats().Idle)
 		}
 	}
 }
@@ -292,11 +294,15 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	if user != nil {
 		orders, err := model.GetOrdersByUserIDAndLastTradeId(h.db, user.ID, lastTradeID)
 		if err != nil {
+			log.Println("Failed to GetOrdersByUserIDAndLastTradeId:", err)
 			h.handleError(w, err, 500)
+			return
 		}
 		for _, order := range orders {
 			if err = model.FetchOrderRelation(h.db, order); err != nil {
+				log.Println("Failed to FetchOrderRelation:", err)
 				h.handleError(w, err, 500)
+				return
 			}
 		}
 		res["traded_orders"] = orders
