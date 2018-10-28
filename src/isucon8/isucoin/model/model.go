@@ -15,6 +15,7 @@ var (
 	ErrCreditInsufficient = errors.New("銀行の残高が足りません")
 	ErrParameterInvalid   = errors.New("parameter invalid")
 	ErrNoOrderForTrade    = errors.New("no order for trade")
+	ErrTooManyFailures    = errors.New("too many failures")
 )
 
 type QueryExecutor interface {
@@ -30,6 +31,7 @@ func InitBenchmark(d QueryExecutor) error {
 		"DELETE FROM candlestick_by_sec WHERE t >= '2018-10-16 10:00:00'",
 		"DELETE FROM candlestick_by_min WHERE t >= '2018-10-16 10:00:00'",
 		"DELETE FROM candlestick_by_hour WHERE t >= '2018-10-16 10:00:00'",
+		"UPDATE user SET failed = 0",
 	} {
 		if _, err := d.Exec(q); err != nil {
 			return errors.Wrapf(err, "query exec failed[%d]", q)

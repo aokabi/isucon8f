@@ -105,13 +105,23 @@ func (h *Handler) Signin(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 		h.handleError(w, errors.New("all parameters are required"), 400)
 		return
 	}
-	user, err := model.UserLogin(h.db, bankID, password)
+	var user *model.User
+	var err error
+	errInternal := h.txScope(func(tx *sql.Tx) error {
+		var errInternal error
+		user, err = model.UserLogin(tx, bankID, password)
+		if err != model.ErrTooManyFailures && err != model.ErrUserNotFound {
+			errInternal = err
+		}
+		return errInternal
+	})
 	switch {
+	case err == model.ErrTooManyFailures:
+		h.handleError(w, err, 403)
 	case err == model.ErrUserNotFound:
-		// TODO: 失敗が多いときに403を返すBanの仕様に対応
 		h.handleError(w, err, 404)
 	case err != nil:
-		h.handleError(w, err, 500)
+		h.handleError(w, errInternal, 500)
 	default:
 		session, err := h.store.Get(r, SessionName)
 		if err != nil {
