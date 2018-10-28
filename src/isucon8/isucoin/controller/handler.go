@@ -43,12 +43,14 @@ func init() {
 	log.Println("concurrency limit:", concurrencyLimit)
 }
 
-func NewHandler(db *sql.DB, store sessions.Store) *Handler {
+func NewHandler(db *sql.DB, store sessions.Store, _handleTrade bool) *Handler {
 	h := &Handler{
 		db:    db,
 		store: store,
 	}
-	model.HandleTrade(h.db)
+	if _handleTrade {
+		model.HandleTrade(h.db)
+	}
 	return h
 }
 

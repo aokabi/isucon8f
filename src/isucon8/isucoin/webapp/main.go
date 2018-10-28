@@ -44,6 +44,7 @@ func main() {
 		dbpass = getEnv("DB_PASSWORD", "")
 		dbname = getEnv("DB_NAME", "isucoin")
 		public = getEnv("PUBLIC_DIR", "public")
+		handleTrade = getEnv("HANDLE_TRADE", "")
 	)
 
 	dbusrpass := dbuser
@@ -58,7 +59,7 @@ func main() {
 	}
 	store := sessions.NewCookieStore([]byte(SessionSecret))
 
-	h := controller.NewHandler(db, store)
+	h := controller.NewHandler(db, store, handleTrade != "")
 
 	router := httprouter.New()
 	router.Handler(http.MethodGet, "/debug/pprof/:item", http.DefaultServeMux)
