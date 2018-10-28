@@ -3,7 +3,7 @@ package model
 import (
 	"database/sql"
 	"time"
-	"fmt"
+	"log"
 	"github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
@@ -94,7 +94,7 @@ func UserLogin(d *sql.Tx, bankID, password string) (*User, error) {
 		}
 		return nil, err
 	}
-	fmt.Println("signin @" + bankID + " - " + weakPassword)
+	log.Println("signin @" + bankID + " - " + weakPassword)
 	// サインイン成功したのでfailedを戻す
 	if user.Failed > 0 {
 		err = ResetLoginFailed(d, bankID)
