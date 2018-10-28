@@ -129,6 +129,8 @@ func (h *Handler) Signin(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 		h.handleError(w, err, 404)
 	case err != nil:
 		h.handleError(w, errInternal, 500)
+	case errInternal != nil:
+		h.handleError(w, errInternal, 500)
 	default:
 		session, err := h.store.Get(r, SessionName)
 		if err != nil {
