@@ -59,6 +59,7 @@ func Logger(d QueryExecutor) (*isulogger.Isulogger, error) {
 }
 
 func sendLog(d QueryExecutor, tag string, v interface{}) {
+	log.Printf("[aokabi] tag: %s, v: %v", tag, v)
 	logger, err := Logger(d)
 	if err != nil {
 		log.Printf("[WARN] new logger failed. tag: %s, v: %v, err:%s", tag, v, err)
