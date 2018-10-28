@@ -2,9 +2,10 @@ package model
 
 import (
 	"database/sql"
-	"github.com/go-sql-driver/mysql"
 	"isucon8/isubank"
 	"time"
+
+	"github.com/go-sql-driver/mysql"
 
 	"github.com/pkg/errors"
 )
@@ -26,6 +27,21 @@ type Order struct {
 	CreatedAt time.Time  `json:"created_at"`
 	User      *User      `json:"user,omitempty"`
 	Trade     *Trade     `json:"trade,omitempty"`
+}
+
+func FetchOrderRelation(d *sql.DB, order *Order) error {
+	var err error
+	order.User, err = GetUserByID(d, order.UserID)
+	if err != nil {
+		return errors.Wrapf(err, "GetUserByID failed. id")
+	}
+	if order.TradeID > 0 {
+		order.Trade, err = GetTradeByID(d, order.TradeID)
+		if err != nil {
+			return errors.Wrapf(err, "GetTradeByID failed. id")
+		}
+	}
+	return nil
 }
 
 func GetOrdersByUserIDWithRelation(d QueryExecutor, userID int64) ([]*Order, error) {

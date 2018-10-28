@@ -168,7 +168,7 @@ var group singleflight.Group
 var c = sync.NewCond(new(sync.Mutex))
 
 func (h *Handler) HandleInfo() {
-	handleInfoOnce.Do(func(){
+	handleInfoOnce.Do(func() {
 		go h.handleInfo()
 	})
 }
@@ -177,7 +177,7 @@ func (h *Handler) handleInfo() {
 	ticker := time.Tick(800 * time.Millisecond)
 	for {
 		select {
-		case <- ticker:
+		case <-ticker:
 			group = singleflight.Group{}
 			c.Broadcast()
 		}
@@ -185,11 +185,11 @@ func (h *Handler) handleInfo() {
 }
 
 type Res struct {
-	cursor int64
+	cursor                                    int64
 	chart_by_sec, chart_by_min, chart_by_hour []model.CandlestickData
-	lowest_sell_price, highest_buy_price int64
-	enable_share bool
-	lastTradeID int64
+	lowest_sell_price, highest_buy_price      int64
+	enable_share                              bool
+	lastTradeID                               int64
 }
 
 func (h *Handler) info(_cursor string) (Res, error) {
@@ -346,6 +346,12 @@ func (h *Handler) GetOrders(w http.ResponseWriter, r *http.Request, _ httprouter
 	if err != nil {
 		h.handleError(w, err, 500)
 		return
+	}
+	for _, order := range orders {
+		if err = model.FetchOrderRelation(h.db, order); err != nil {
+			h.handleError(w, err, 500)
+			return
+		}
 	}
 	h.handleSuccess(w, orders)
 }
