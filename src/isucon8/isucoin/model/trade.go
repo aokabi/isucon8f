@@ -2,7 +2,6 @@ package model
 
 import (
 	"database/sql"
-	"fmt"
 	"isucon8/isubank"
 	"log"
 	"time"
@@ -41,25 +40,16 @@ func GetLatestTradeIDForInfo(db *sql.DB) (int64, error) {
 	return id, err
 }
 
-func GetCandlestickData(d QueryExecutor, mt time.Time, tf string) ([]*CandlestickData, error) {
-	query := fmt.Sprintf(`
-		SELECT m.t, a.price, b.price, m.h, m.l
-		FROM (
-			SELECT
-				STR_TO_DATE(DATE_FORMAT(created_at, '%s'), '%s') AS t,
-				MIN(id) AS min_id,
-				MAX(id) AS max_id,
-				MAX(price) AS h,
-				MIN(price) AS l
-			FROM trade
-			WHERE created_at >= ?
-			GROUP BY t
-		) m
-		JOIN trade a ON a.id = m.min_id
-		JOIN trade b ON b.id = m.max_id
-		ORDER BY m.t
-	`, tf, "%Y-%m-%d %H:%i:%s")
-	return scanCandlestickDatas(d.Query(query, mt))
+func GetCandlestickDataBySec(d QueryExecutor, mt time.Time) ([]*CandlestickData, error) {
+	return scanCandlestickDatas(d.Query(`SELECT * FROM candlestick_by_sec WHERE t >= ?`, mt))
+}
+
+func GetCandlestickDataByMin(d QueryExecutor, mt time.Time) ([]*CandlestickData, error) {
+	return scanCandlestickDatas(d.Query(`SELECT * FROM candlestick_by_min WHERE t >= ?`, mt))
+}
+
+func GetCandlestickDataByHour(d QueryExecutor, mt time.Time) ([]*CandlestickData, error) {
+	return scanCandlestickDatas(d.Query(`SELECT * FROM candlestick_by_hour WHERE t >= ?`, mt))
 }
 
 func HasTradeChanceByOrder(d QueryExecutor, orderID int64) (bool, error) {
@@ -137,6 +127,36 @@ func commitReservedOrder(tx *sql.Tx, order *Order, targets []*Order, reserves []
 	tradeID, err := res.LastInsertId()
 	if err != nil {
 		return errors.Wrap(err, "lastInsertID for trade")
+	}
+	_, err = tx.Exec(`
+		INSERT INTO candlestick_by_sec (t, open_price, close_price, highest_price, lowest_price) 
+		SELECT x.t, x.o, x.c, x.h, x.l FROM (
+			SELECT STR_TO_DATE(DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s'), '%Y-%m-%d %H:%i:%s') AS t, price AS o, price AS c, price AS h, price AS l FROM trade WHERE id = ?
+		) AS x 
+		ON DUPLICATE KEY UPDATE close_price = x.c, highest_price = GREATEST(highest_price, x.c), lowest_price = LEAST(lowest_price, x.c)
+	`, tradeID)
+	if err != nil {
+		return errors.Wrap(err, "insert candlestick_by_sec")
+	}
+	_, err = tx.Exec(`
+		INSERT INTO candlestick_by_min (t, open_price, close_price, highest_price, lowest_price) 
+		SELECT x.t, x.o, x.c, x.h, x.l FROM (
+			SELECT STR_TO_DATE(DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:00'), '%Y-%m-%d %H:%i:%s') AS t, price AS o, price AS c, price AS h, price AS l FROM trade WHERE id = ?
+		) AS x 
+		ON DUPLICATE KEY UPDATE close_price = x.c, highest_price = GREATEST(highest_price, x.c), lowest_price = LEAST(lowest_price, x.c)
+	`, tradeID)
+	if err != nil {
+		return errors.Wrap(err, "insert candlestick_by_min")
+	}
+	_, err = tx.Exec(`
+		INSERT INTO candlestick_by_hour (t, open_price, close_price, highest_price, lowest_price) 
+		SELECT x.t, x.o, x.c, x.h, x.l FROM (
+			SELECT STR_TO_DATE(DATE_FORMAT(created_at, '%Y-%m-%d %H:00:00'), '%Y-%m-%d %H:%i:%s') AS t, price AS o, price AS c, price AS h, price AS l FROM trade WHERE id = ?
+		) AS x 
+		ON DUPLICATE KEY UPDATE close_price = x.c, highest_price = GREATEST(highest_price, x.c), lowest_price = LEAST(lowest_price, x.c)
+	`, tradeID)
+	if err != nil {
+		return errors.Wrap(err, "insert candlestick_by_hour")
 	}
 	sendLog(tx, "trade", map[string]interface{}{
 		"trade_id": tradeID,

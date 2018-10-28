@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -20,17 +22,28 @@ const (
 	SessionName = "isucoin_session"
 )
 
-var BaseTime time.Time
+// ISUCON用初期データの基準時間です
+// この時間以降のデータはInitializeで削除されます
+var BaseTime = time.Date(2018, 10, 16, 10, 0, 0, 0, time.Local)
+
+var (
+	concurrencyLimit = 50
+)
 
 type Handler struct {
 	db    *sql.DB
 	store sessions.Store
 }
 
+func init() {
+	limit, err := strconv.Atoi(os.Getenv("ISU_CONCURRENCY_LIMIT"))
+	if err == nil {
+		concurrencyLimit = limit
+	}
+	log.Println("concurrency limit:", concurrencyLimit)
+}
+
 func NewHandler(db *sql.DB, store sessions.Store) *Handler {
-	// ISUCON用初期データの基準時間です
-	// この時間以降のデータはInitializeで削除されます
-	BaseTime = time.Date(2018, 10, 16, 10, 0, 0, 0, time.Local)
 	return &Handler{
 		db:    db,
 		store: store,
@@ -184,7 +197,7 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	if lt.After(bySecTime) {
 		bySecTime = time.Date(lt.Year(), lt.Month(), lt.Day(), lt.Hour(), lt.Minute(), lt.Second(), 0, lt.Location())
 	}
-	res["chart_by_sec"], err = model.GetCandlestickData(h.db, bySecTime, "%Y-%m-%d %H:%i:%s")
+	res["chart_by_sec"], err = model.GetCandlestickDataBySec(h.db, bySecTime)
 	if err != nil {
 		h.handleError(w, errors.Wrap(err, "model.GetCandlestickData by sec"), 500)
 		return
@@ -194,7 +207,7 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	if lt.After(byMinTime) {
 		byMinTime = time.Date(lt.Year(), lt.Month(), lt.Day(), lt.Hour(), lt.Minute(), 0, 0, lt.Location())
 	}
-	res["chart_by_min"], err = model.GetCandlestickData(h.db, byMinTime, "%Y-%m-%d %H:%i:00")
+	res["chart_by_min"], err = model.GetCandlestickDataByMin(h.db, byMinTime)
 	if err != nil {
 		h.handleError(w, errors.Wrap(err, "model.GetCandlestickData by min"), 500)
 		return
@@ -204,7 +217,7 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	if lt.After(byHourTime) {
 		byHourTime = time.Date(lt.Year(), lt.Month(), lt.Day(), lt.Hour(), 0, 0, 0, lt.Location())
 	}
-	res["chart_by_hour"], err = model.GetCandlestickData(h.db, byHourTime, "%Y-%m-%d %H:00:00")
+	res["chart_by_hour"], err = model.GetCandlestickDataByHour(h.db, byHourTime)
 	if err != nil {
 		h.handleError(w, errors.Wrap(err, "model.GetCandlestickData by hour"), 500)
 		return
@@ -229,8 +242,10 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	default:
 		res["highest_buy_price"] = highestBuyOrder.Price
 	}
-	// TODO: trueにするとシェアボタンが有効になるが、アクセスが増えてヤバイので一旦falseにしておく
-	res["enable_share"] = false
+	numGoroutine := runtime.NumGoroutine()
+	log.Println("NumGoroutine:", numGoroutine)
+	enableShare := numGoroutine < concurrencyLimit
+	res["enable_share"] = enableShare
 
 	h.handleSuccess(w, res)
 }

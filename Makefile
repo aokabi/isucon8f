@@ -14,4 +14,4 @@ deps:
 
 .PHONY: build
 build:
-	GOPATH=${DIR} go build -v -o isucoin isucon8/isucoin/webapp
+	GOPATH=${DIR} /home/isucon/local/go/bin/go build -v -o isucoin isucon8/isucoin/webapp
