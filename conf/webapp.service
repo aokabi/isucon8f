@@ -1,0 +1,21 @@
+[Unit]
+Description = isucoin application
+
+[Service]
+LimitNOFILE=102400
+LimitNPROC=102400
+
+WorkingDirectory=/home/isucon/isucon2018-final/webapp/go
+EnvironmentFile=/home/isucon/env.sh
+
+ExecStartPre = /usr/bin/make
+ExecStart = /home/isucon/isucon2018-final/webapp/go/isucoin
+ExecStop=/bin/kill -SIGTERM $MAINPID
+
+Restart   = always
+Type      = simple
+User      = isucon
+Group     = isucon
+
+[Install]
+WantedBy = multi-user.target
