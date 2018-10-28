@@ -413,14 +413,6 @@ func (h *Handler) CommonMiddleware(f http.Handler) http.Handler {
 	})
 }
 
-func (h *Handler) userByRequest(r *http.Request) (*model.User, error) {
-	v := r.Context().Value("user_id")
-	if id, ok := v.(int64); ok {
-		return model.GetUserByID(h.db, id)
-	}
-	return nil, errors.New("Not authenticated")
-}
-
 func (h *Handler) handleSuccess(w http.ResponseWriter, data interface{}) {
 	w.WriteHeader(200)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

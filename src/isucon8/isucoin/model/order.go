@@ -28,10 +28,6 @@ type Order struct {
 	Trade     *Trade     `json:"trade,omitempty"`
 }
 
-func GetOrdersByUserID(d QueryExecutor, userID int64) ([]*Order, error) {
-	return scanOrders(d.Query("SELECT * FROM orders WHERE user_id = ? AND (closed_at IS NULL OR trade_id IS NOT NULL) ORDER BY created_at ASC", userID))
-}
-
 func GetOrdersByUserIDWithRelation(d QueryExecutor, userID int64) ([]*Order, error) {
 	rows, err := d.Query("SELECT o.id, o.type, o.user_id, o.amount, o.price, o.closed_at, o.trade_id, o.created_at, u.name, t.amount, t.price, t.created_at FROM orders AS o INNER JOIN user AS u ON o.user_id = u.id LEFT JOIN trade AS t ON o.trade_id = t.id WHERE o.user_id = ? AND (o.closed_at IS NULL OR o.trade_id IS NOT NULL) ORDER BY o.created_at ASC", userID)
 	if err != nil {
@@ -129,10 +125,6 @@ func getOpenOrderByID(tx *sql.Tx, id int64) (*Order, error) {
 	return order, nil
 }
 
-func GetOrderByID(d QueryExecutor, id int64) (*Order, error) {
-	return scanOrder(d.Query("SELECT * FROM orders WHERE id = ?", id))
-}
-
 func getOrderByIDWithLock(tx *sql.Tx, id int64) (*Order, error) {
 	return scanOrder(tx.Query("SELECT * FROM orders WHERE id = ? FOR UPDATE", id))
 }
@@ -143,21 +135,6 @@ func GetLowestSellOrder(d QueryExecutor) (*Order, error) {
 
 func GetHighestBuyOrder(d QueryExecutor) (*Order, error) {
 	return scanOrder(d.Query("SELECT * FROM orders WHERE type = ? AND closed_at IS NULL ORDER BY price DESC, created_at ASC LIMIT 1", OrderTypeBuy))
-}
-
-func FetchOrderRelation(d *sql.DB, order *Order) error {
-	var err error
-	order.User, err = GetUserByID(d, order.UserID)
-	if err != nil {
-		return errors.Wrapf(err, "GetUserByID failed. id")
-	}
-	if order.TradeID > 0 {
-		order.Trade, err = GetTradeByID(d, order.TradeID)
-		if err != nil {
-			return errors.Wrapf(err, "GetTradeByID failed. id")
-		}
-	}
-	return nil
 }
 
 func AddOrder(tx *sql.Tx, ot string, userID, amount, price int64, bankID string) (int64, error) {
