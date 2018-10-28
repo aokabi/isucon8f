@@ -74,7 +74,12 @@ func GetOrdersByUserIDWithRelation(d QueryExecutor, userID int64) ([]*Order, err
 }
 
 func GetOrdersByUserIDAndLastTradeId(d QueryExecutor, userID int64, tradeID int64) ([]*Order, error) {
-	rows, err := d.Query(`SELECT o.id, o.type, o.user_id, o.amount, o.price, o.closed_at, o.trade_id, o.created_at, u.name, t.amount, t.price, t.created_at FROM orders AS o INNER JOIN user AS u ON o.user_id = u.id LEFT JOIN trade AS t ON o.trade_id = t.id WHERE o.user_id = ? AND o.trade_id IS NOT NULL AND o.trade_id > ? ORDER BY o.created_at ASC`, userID, tradeID)
+	rows, err := d.Query(`
+	SELECT
+		o.id, o.type, o.user_id, o.amount, o.price, o.closed_at, o.trade_id, o.created_at,
+		u.id, u.bank_id,u.name,u.password,u.created_at,u.failed,
+		t.id, t.amount, t.price, t.created_at
+	FROM orders AS o INNER JOIN user AS u ON o.user_id = u.id LEFT JOIN trade AS t ON o.trade_id = t.id WHERE o.user_id = ? AND o.trade_id IS NOT NULL AND o.trade_id > ? ORDER BY o.created_at ASC`, userID, tradeID)
 	if err != nil {
 		return nil, err
 	}
@@ -86,10 +91,15 @@ func GetOrdersByUserIDAndLastTradeId(d QueryExecutor, userID int64, tradeID int6
 		var v Order
 		var closedAt mysql.NullTime
 		var tradeID sql.NullInt64
-		var name string
-		var amount, price sql.NullInt64
+		// USER
+		v.User = &User{}
+		// TRADE
+		var tid, amount, price sql.NullInt64
 		var created_at mysql.NullTime
-		if err = rows.Scan(&v.ID, &v.Type, &v.UserID, &v.Amount, &v.Price, &closedAt, &tradeID, &v.CreatedAt, &name, &amount, &price, &created_at); err != nil {
+		if err = rows.Scan(
+				v.ID, &v.Type, &v.UserID, &v.Amount, &v.Price, &closedAt, &tradeID, &v.CreatedAt,
+				&v.User.ID,&v.User.BankID,&v.User.Name,&v.User.Password,&v.User.CreatedAt,&v.User.Failed,
+			  &tid, &amount, &price, &created_at); err != nil {
 			return nil, err
 		}
 		if closedAt.Valid {
@@ -97,16 +107,14 @@ func GetOrdersByUserIDAndLastTradeId(d QueryExecutor, userID int64, tradeID int6
 		}
 		if tradeID.Valid {
 			v.TradeID = tradeID.Int64
+		} else {
+			v.TradeID = 0
 		}
-		v.User = &User{ID: v.UserID, Name: name}
-		v.Trade = &Trade{}
-		if amount.Valid {
+		if v.TradeID > 0 {
+			v.Trade = &Trade{}
+			v.Trade.ID = tid.Int64
 			v.Trade.Amount = amount.Int64
-		}
-		if price.Valid {
 			v.Trade.Price = price.Int64
-		}
-		if created_at.Valid {
 			v.Trade.CreatedAt = created_at.Time
 		}
 		orders = append(orders, &v)
