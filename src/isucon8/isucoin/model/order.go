@@ -32,7 +32,44 @@ func GetOrdersByUserID(d QueryExecutor, userID int64) ([]*Order, error) {
 }
 
 func GetOrdersByUserIDAndLastTradeId(d QueryExecutor, userID int64, tradeID int64) ([]*Order, error) {
-	return scanOrders(d.Query(`SELECT * FROM orders WHERE user_id = ? AND trade_id IS NOT NULL AND trade_id > ? ORDER BY created_at ASC`, userID, tradeID))
+	rows, err := d.Query(`SELECT o.id, o.type, o.user_id, o.amount, o.price, o.closed_at, o.trade_id, o.created_at, u.name, t.amount, t.price, t.created_at FROM orders AS o INNER JOIN user AS u ON o.user_id = u.id LEFT JOIN trade AS t ON o.trade_id = t.id WHERE o.user_id = ? AND o.trade_id IS NOT NULL AND o.trade_id > ? ORDER BY o.created_at ASC`, userID, tradeID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err = rows.Close()
+	}()
+	orders := []*Order{}
+	for rows.Next() {
+		var v Order
+		var closedAt mysql.NullTime
+		var tradeID sql.NullInt64
+		var name string
+		var amount, price sql.NullInt64
+		var created_at mysql.NullTime
+		if err = rows.Scan(&v.ID, &v.Type, &v.UserID, &v.Amount, &v.Price, &closedAt, &tradeID, &v.CreatedAt, &name, &amount, &price, &created_at); err != nil {
+			return nil, err
+		}
+		if closedAt.Valid {
+			v.ClosedAt = &closedAt.Time
+		}
+		if tradeID.Valid {
+			v.TradeID = tradeID.Int64
+		}
+		v.User = &User{ID: v.UserID, Name: name}
+		v.Trade = &Trade{}
+		if amount.Valid {
+			v.Trade.Amount = amount.Int64
+		}
+		if price.Valid {
+			v.Trade.Price = price.Int64
+		}
+		if created_at.Valid {
+			v.Trade.CreatedAt = created_at.Time
+		}
+		orders = append(orders, &v)
+	}
+	return orders, rows.Err()
 }
 
 func getOpenOrderByID(tx *sql.Tx, id int64) (*Order, error) {
