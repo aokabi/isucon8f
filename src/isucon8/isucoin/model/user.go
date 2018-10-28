@@ -90,7 +90,7 @@ func UserLogin(d *sql.Tx, bankID, password string) (*User, error) {
 			if user.Failed == 5 {
 				return nil, ErrTooManyFailures
 			}
-			return nil, ErrUserNotFound
+			return nil, bcrypt.ErrMismatchedHashAndPassword
 		}
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(weakPassword), []byte(password)); err != nil {
